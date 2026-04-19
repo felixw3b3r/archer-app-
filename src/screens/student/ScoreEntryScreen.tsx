@@ -10,8 +10,8 @@ import {
   TouchableWithoutFeedback,
   Keyboard
 } from 'react-native';
-import { colors } from '../theme/colors';
-import { useScoreEntry } from '../hooks/useScoreEntry';
+import { colors } from '../../theme/colors';
+import { useScoreEntry } from '../../hooks/useScoreEntry';
 import { getStyles } from './ScoreEntryScreen.styles';
 
 export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu: () => void, themeMode: 'dark' | 'light' }) {
@@ -135,11 +135,6 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
                 <Text style={styles.scoreControlText}>+</Text>
               </TouchableOpacity>
             </View>
-
-            {/* Sıfır (Karavana) Butonu - Simetri için puan girişinin altına alındı */}
-            <TouchableOpacity style={styles.zeroButton} onPress={handleZero}>
-              <Text style={styles.zeroText}>0 (Karavana)</Text>
-            </TouchableOpacity>
 
             <TouchableOpacity style={styles.saveButton} onPress={handleSaveScore}>
               <Text style={styles.saveButtonText}>KAYDET</Text>

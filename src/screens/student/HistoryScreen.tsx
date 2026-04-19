@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, useColorScheme } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { colors } from '../theme/colors';
-import { TrainingHistory } from '../hooks/useScoreEntry';
+import { colors } from '../../theme/colors';
+import { TrainingHistory } from '../../hooks/useScoreEntry';
 import { getStyles } from './ScoreEntryScreen.styles';
 
 export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: () => void, themeMode: 'dark' | 'light' }) {

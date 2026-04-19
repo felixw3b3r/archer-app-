@@ -1,35 +1,71 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Animated, Dimensions, useColorScheme, SafeAreaView, StatusBar } from 'react-native';
+import { 
+  View, 
+  StyleSheet, 
+  TouchableOpacity, 
+  Text, 
+  Animated, 
+  Dimensions, 
+  useColorScheme, 
+  SafeAreaView, 
+  StatusBar, 
+  Image,
+  ImageBackground
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ScoreEntryScreen from './src/screens/ScoreEntryScreen';
-import HistoryScreen from './src/screens/HistoryScreen';
+import StudentDashboard from './src/screens/student/StudentDashboard';
+import TeacherDashboard from './src/screens/teacher/TeacherDashboard';
 import { colors } from './src/theme/colors';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function App() {
   const systemColorScheme = useColorScheme();
+  const [role, setRole] = useState<'student' | 'teacher' | null>(null);
   const [currentScreen, setCurrentScreen] = useState('Home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(systemColorScheme === 'dark' ? 'dark' : 'light');
   const slideAnim = useRef(new Animated.Value(width * 0.7)).current;
 
-  // Tema tercihini yükle
+  // Başlangıçta Tema ve Rolü yükle
   useEffect(() => {
-    const loadTheme = async () => {
+    const loadData = async () => {
       try {
         const savedTheme = await AsyncStorage.getItem('@theme_mode');
+        const savedRole = await AsyncStorage.getItem('@user_role');
+        
         if (savedTheme === 'dark' || savedTheme === 'light') {
           setThemeMode(savedTheme);
         }
+        if (savedRole === 'student' || savedRole === 'teacher') {
+          setRole(savedRole as 'student' | 'teacher');
+        }
       } catch (e) {
-        console.error("Tema yüklenemedi", e);
+        console.error("Veriler yüklenemedi", e);
       }
     };
-    loadTheme();
+    loadData();
   }, []);
 
-  // Tema değiştirme fonksiyonu
+  const selectRole = async (selectedRole: 'student' | 'teacher') => {
+    setRole(selectedRole);
+    try {
+      await AsyncStorage.setItem('@user_role', selectedRole);
+    } catch (e) {
+      console.error("Rol kaydedilemedi", e);
+    }
+  };
+
+  const logoutRole = async () => {
+    setRole(null);
+    setIsMenuOpen(false);
+    try {
+      await AsyncStorage.removeItem('@user_role');
+    } catch (e) {
+      console.error("Rol silinemedi", e);
+    }
+  };
+
   const toggleTheme = async () => {
     const newMode = themeMode === 'dark' ? 'light' : 'dark';
     setThemeMode(newMode);
@@ -64,60 +100,175 @@ export default function App() {
     toggleMenu();
   };
 
+  // ROL SEÇİM EKRANI
+  if (role === null) {
+    return (
+      <View style={[styles.roleContainer, { backgroundColor: '#040B14' }]}>
+        <StatusBar barStyle="light-content" />
+        
+        {/* ÖĞRENCİ SEÇENEĞİ */}
+        <TouchableOpacity 
+          style={styles.roleCard} 
+          activeOpacity={0.7}
+          onPress={() => selectRole('student')}
+        >
+          <View style={styles.roleContent}>
+            <Image 
+              source={require('./assets/student_role.png')} 
+              style={styles.roleImage}
+            />
+            <Text style={styles.roleTitleSmall}>ÖĞRENCİ</Text>
+            <Text style={styles.roleSubtitleSmall}>Antrenman ve Gelişim</Text>
+          </View>
+        </TouchableOpacity>
+
+        <View style={{ height: 2, backgroundColor: 'rgba(100, 255, 218, 0.2)', width: '80%', alignSelf: 'center' }} />
+
+        {/* ÖĞRETMEN SEÇENEĞİ */}
+        <TouchableOpacity 
+          style={styles.roleCard} 
+          activeOpacity={0.7}
+          onPress={() => selectRole('teacher')}
+        >
+          <View style={styles.roleContent}>
+            <Image 
+              source={require('./assets/teacher_role.png')} 
+              style={styles.roleImage}
+            />
+            <Text style={styles.roleTitleSmall}>ÖĞRETMEN</Text>
+            <Text style={styles.roleSubtitleSmall}>Analiz ve Takip</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ANA UYGULAMA İÇERİĞİ (Giriş Yapıldıktan Sonra)
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.surface} />
-      <View style={{ flex: 1 }}>
-        {/* Mevcut Ekran */}
-        {currentScreen === 'Home' ? (
-          <ScoreEntryScreen onOpenMenu={toggleMenu} themeMode={themeMode} />
-        ) : (
-          <HistoryScreen onOpenMenu={toggleMenu} themeMode={themeMode} />
-        )}
+      
+      {/* ROL TABANLI EKRAN RENDERI */}
+      {role === 'student' ? (
+        <StudentDashboard 
+          currentScreen={currentScreen} 
+          onOpenMenu={toggleMenu} 
+          themeMode={themeMode} 
+        />
+      ) : (
+        <TeacherDashboard 
+          onOpenMenu={toggleMenu} 
+          themeMode={themeMode} 
+          theme={theme}
+          onLogout={logoutRole}
+        />
+      )}
 
-        {/* Karartma Perdesi */}
-        {isMenuOpen && (
-          <TouchableOpacity 
-            activeOpacity={1} 
-            style={styles.overlay} 
-            onPress={toggleMenu}
-          />
-        )}
+      {/* MERKEZİ MENÜ SİSTEMİ (EN ÜST KATMAN) */}
+      {isMenuOpen && (
+        <TouchableOpacity 
+          activeOpacity={1} 
+          style={styles.overlay} 
+          onPress={toggleMenu}
+        />
+      )}
 
-        {/* Sağdan Kayan Menü */}
-        <Animated.View 
-          style={[
-            styles.menuContainer, 
-            { backgroundColor: theme.surface, transform: [{ translateX: slideAnim }] }
-          ]}
-        >
-          <View style={styles.menuHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text style={[styles.menuTitle, { color: theme.primary }]}>Menü</Text>
-              <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
-                <Text style={{ fontSize: 28 }}>{themeMode === 'dark' ? '🌙' : '☀️'}</Text>
-              </TouchableOpacity>
-            </View>
+      <Animated.View 
+        style={[
+          styles.menuContainer, 
+          { backgroundColor: theme.surface, transform: [{ translateX: slideAnim }] }
+        ]}
+      >
+        <View style={styles.menuHeader}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+            <Text style={[styles.menuTitle, { color: theme.primary }]}>Menü</Text>
+            <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
+              <Text style={{ fontSize: 28 }}>{themeMode === 'dark' ? '🌙' : '☀️'}</Text>
+            </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('Home')}>
-            <Text style={[styles.menuItemText, { color: currentScreen === 'Home' ? theme.primary : theme.text }]}>Antrenman</Text>
-          </TouchableOpacity>
+          {/* ROL DEĞİŞTİRME İKONLARI */}
+          <View style={styles.menuRoleSwitchContainer}>
+            <TouchableOpacity 
+              style={[styles.menuRoleIconButton, role === 'student' && { borderColor: '#64FFDA', borderWidth: 2 }]} 
+              onPress={() => { selectRole('student'); toggleMenu(); }}
+            >
+              <Image source={require('./assets/student_role.png')} style={styles.menuRoleIcon} />
+              <Text style={[styles.menuRoleIconText, { color: role === 'student' ? '#64FFDA' : theme.textSecondary }]}>Öğrenci</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('History')}>
-            <Text style={[styles.menuItemText, { color: currentScreen === 'History' ? theme.primary : theme.text }]}>Geçmiş</Text>
-          </TouchableOpacity>
-
-          <View style={styles.menuFooter}>
-            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Archer App v1.1</Text>
+            <TouchableOpacity 
+              style={[styles.menuRoleIconButton, role === 'teacher' && { borderColor: '#64FFDA', borderWidth: 2 }]} 
+              onPress={() => { selectRole('teacher'); toggleMenu(); }}
+            >
+              <Image source={require('./assets/teacher_role.png')} style={styles.menuRoleIcon} />
+              <Text style={[styles.menuRoleIconText, { color: role === 'teacher' ? '#64FFDA' : theme.textSecondary }]}>Öğretmen</Text>
+            </TouchableOpacity>
           </View>
-        </Animated.View>
-      </View>
+        </View>
+
+        {/* SADECE ÖĞRENCİDE GÖRÜNEN NAVİGASYON */}
+        {role === 'student' && (
+          <>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('Home')}>
+              <Text style={[styles.menuItemText, { color: currentScreen === 'Home' ? theme.primary : theme.text }]}>Antrenman</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('History')}>
+              <Text style={[styles.menuItemText, { color: currentScreen === 'History' ? theme.primary : theme.text }]}>Geçmiş</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        <View style={{ height: 1, backgroundColor: 'rgba(128,128,128,0.1)', marginVertical: 20 }} />
+
+        <TouchableOpacity style={styles.menuItem} onPress={logoutRole}>
+          <Text style={[styles.menuItemText, { color: theme.textSecondary }]}>Çıkış Yap / Rol Seçimi</Text>
+        </TouchableOpacity>
+
+        <View style={styles.menuFooter}>
+          <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Archer App v1.2</Text>
+        </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  roleContainer: {
+    flex: 1,
+    paddingVertical: 20,
+  },
+  roleCard: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  roleContent: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  roleImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 25,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(100, 255, 218, 0.3)',
+  },
+  roleTitleSmall: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#64FFDA',
+    letterSpacing: 2,
+  },
+  roleSubtitleSmall: {
+    fontSize: 14,
+    color: '#E0FBFF',
+    marginTop: 5,
+    opacity: 0.7,
+    letterSpacing: 1,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -163,5 +314,67 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     left: 20,
+  },
+  menuRoleSwitchContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 10,
+    paddingBottom: 10,
+  },
+  menuRoleIconButton: {
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 15,
+    width: '45%',
+    backgroundColor: 'rgba(128,128,128,0.05)',
+  },
+  menuRoleIcon: {
+    width: 45,
+    height: 45,
+    borderRadius: 10,
+    marginBottom: 5,
+  },
+  menuRoleIconText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  placeholderContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  placeholderTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    marginBottom: 10,
+  },
+  placeholderSub: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  backButton: {
+    borderWidth: 2,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+  },
+  teacherHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(128,128,128,0.1)',
+  },
+  teacherTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+  },
+  menuButton: {
+    padding: 5,
   }
 });

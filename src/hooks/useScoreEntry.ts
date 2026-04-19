@@ -10,10 +10,10 @@ export interface TrainingHistory {
   seriesScores: number[];
 }
 
-export const useScoreEntry = () => {
+export const useScoreEntry = (initialSeries = 7, initialArrows = 5) => {
   // Antrenman Ayarları
-  const [totalSeries, setTotalSeries] = useState(7); // Örn: 7 Seri
-  const [arrowsPerSeries, setArrowsPerSeries] = useState(5); // Örn: 5 Ok (Maks 50 Puan)
+  const [totalSeries, setTotalSeries] = useState(initialSeries);
+  const [arrowsPerSeries, setArrowsPerSeries] = useState(initialArrows);
   
   // Skor Durumu
   const [currentSeries, setCurrentSeries] = useState(1);
@@ -136,8 +136,8 @@ export const useScoreEntry = () => {
   };
 
   const handleReset = () => {
-    setTotalSeries(7);
-    setArrowsPerSeries(5);
+    setTotalSeries(initialSeries);
+    setArrowsPerSeries(initialArrows);
     setCurrentSeries(1);
     setScoreInput('');
     setSeriesScores([]);
@@ -151,6 +151,7 @@ export const useScoreEntry = () => {
     setArrowsPerSeries,
     currentSeries,
     scoreInput,
+    seriesScores,
     totalScore,
     isFinished,
     handleIncrement,
