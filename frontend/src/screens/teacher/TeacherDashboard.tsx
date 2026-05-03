@@ -11,6 +11,7 @@ import {
   StyleSheet 
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Circle } from 'react-native-svg';
 import { styles } from './TeacherDashboard.styles';
 import CompetitionScoring from './CompetitionScoring';
 
@@ -35,16 +36,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   const [newAge, setNewAge] = useState('');
 
   // Yarışma Ayarları
-  const [compRounds, setCompRounds] = useState('6');
-  const [compArrows, setCompArrows] = useState('3');
+  const [compRounds, setCompRounds] = useState('5');
+  const [compArrows, setCompArrows] = useState('7');
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
   const [finishedStudentIds, setFinishedStudentIds] = useState<string[]>([]);
   const [studentTotalScores, setStudentTotalScores] = useState<{[key: string]: number}>({});
+  const [studentCompletedRounds, setStudentCompletedRounds] = useState<{[key: string]: number}>({});
+  const [studentSeriesScores, setStudentSeriesScores] = useState<{[key: string]: number[]}>({});
   const [missedStudentIds, setMissedStudentIds] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [competitionHistory, setCompetitionHistory] = useState<any[]>([]);
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<any | null>(null);
+  const [selectedStudentDetail, setSelectedStudentDetail] = useState<any | null>(null);
   const [compStartTime, setCompStartTime] = useState<number | null>(null);
   const [studentDurations, setStudentDurations] = useState<{[key: string]: number}>({});
   const [activeSessionStartTime, setActiveSessionStartTime] = useState<number | null>(null);
@@ -70,9 +74,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
       const compEndTime = Date.now();
       const totalCompDuration = compStartTime ? Math.floor((compEndTime - compStartTime) / 1000) : 0;
 
-      const safeCompRounds = parseInt(compRounds) || 6;
-      const safeCompArrows = parseInt(compArrows) || 3;
-      
+      const safeCompRounds = parseInt(compRounds) || 5;
+      const safeCompArrows = parseInt(compArrows) || 7;
+    
       const sortedResults = students
         .filter(s => selectedStudentIds.includes(s.id))
         .sort((a, b) => (studentTotalScores[b.id] || 0) - (studentTotalScores[a.id] || 0))
@@ -83,6 +87,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
           return {
             studentName: s.name,
             totalScore: score,
+            seriesScores: studentSeriesScores[s.id] || [],
             average: totalArrows > 0 ? (score / totalArrows).toFixed(2) : "0.00",
             duration: `${Math.floor(duration / 60)}dk ${duration % 60}sn`
           };
@@ -343,7 +348,37 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                       setMissedStudentIds(prev => prev.filter(id => id !== student.id));
                     }}
                   >
-                    <View style={[styles.ppArea, isFinished && { borderColor: '#4CAF50' }]}>
+                    <View style={[styles.ppArea, { borderWidth: isFinished ? 1.5 : 0 }, isFinished && { borderColor: '#4CAF50' }, { position: 'relative' }]}>
+                      {!isFinished && (
+                        <Svg width={90} height={90} style={{ position: 'absolute', top: 0, left: 0 }}>
+                          {Array.from({ length: parseInt(compRounds) || 1 }).map((_, i) => {
+                            const total = parseInt(compRounds) || 1;
+                            const comp = studentCompletedRounds[student.id] || 0;
+                            const isActive = i < comp;
+                            const radius = 42;
+                            const circum = 2 * Math.PI * radius;
+                            const gap = circum * 0.08;
+                            const segLen = (circum / total) - gap;
+                            const rotation = (i * 360) / total - 90;
+                            return (
+                              <Circle
+                                key={i}
+                                cx={45}
+                                cy={45}
+                                r={radius}
+                                stroke={isActive ? theme.primary : theme.textSecondary + '40'}
+                                strokeWidth={4}
+                                strokeDasharray={`${segLen} ${circum}`}
+                                strokeDashoffset={0}
+                                rotation={rotation}
+                                origin="45, 45"
+                                fill="none"
+                                strokeLinecap="round"
+                              />
+                            );
+                          })}
+                        </Svg>
+                      )}
                       <Text style={{ fontSize: 40 }}>{isFinished ? '✅' : (isMissed ? '⚠️' : '👤')}</Text>
                     </View>
                     <View style={styles.studentInfo}>
@@ -391,7 +426,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             <View style={{ flex: 1, backgroundColor: theme.background }}>
                <View style={[styles.header, { backgroundColor: theme.surface }]}>
                   <Text style={[styles.headerTitle, { color: theme.primary }]}>Yarışma Sonuçları</Text>
-                  <TouchableOpacity onPress={() => { setShowResults(false); setView('overview'); setSelectedStudentIds([]); setFinishedStudentIds([]); setStudentTotalScores({}); }} style={styles.menuButton}>
+                  <TouchableOpacity onPress={() => { setShowResults(false); setView('overview'); setSelectedStudentIds([]); setFinishedStudentIds([]); setStudentTotalScores({}); setStudentCompletedRounds({}); setStudentSeriesScores({}); }} style={styles.menuButton}>
                     <Text style={{ color: theme.primary, fontWeight: 'bold' }}>KAPAT</Text>
                   </TouchableOpacity>
                </View>
@@ -469,8 +504,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                 }
                 setActiveStudentId(null);
               }}
-              onStatusChange={(finished, totalScore) => {
+              onStatusChange={(finished, totalScore, completedRounds, seriesScores) => {
                 setStudentTotalScores(prev => ({ ...prev, [student.id]: totalScore }));
+                setStudentCompletedRounds(prev => ({ ...prev, [student.id]: completedRounds }));
+                setStudentSeriesScores(prev => ({ ...prev, [student.id]: seriesScores }));
                 if (finished) {
                   setFinishedStudentIds(prev => prev.includes(student.id) ? prev : [...prev, student.id]);
                 } else {
@@ -531,7 +568,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                 </View>
                 <ScrollView contentContainerStyle={styles.listContainer}>
                   {selectedHistoryItem.results.map((res: any, index: number) => (
-                    <View key={index} style={[styles.resultCard, { backgroundColor: theme.surface }]}>
+                    <TouchableOpacity 
+                      key={index} 
+                      style={[styles.resultCard, { backgroundColor: theme.surface }]}
+                      onPress={() => setSelectedStudentDetail(res)}
+                    >
                       <View style={styles.resultLeft}>
                         <View style={[styles.resultPpArea, { position: 'relative' }]}>
                           <Text style={{ fontSize: 24 }}>👤</Text>
@@ -547,10 +588,63 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                       <View style={styles.resultScoreContainer}>
                         <Text style={[styles.resultScore, { color: theme.primary }]}>{res.totalScore}</Text>
                       </View>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </ScrollView>
              </View>
+          </Modal>
+        )}
+
+        {selectedStudentDetail && (
+          <Modal visible={true} animationType="slide">
+            <View style={{ flex: 1, backgroundColor: theme.background }}>
+              <View style={[styles.header, { backgroundColor: theme.surface }]}>
+                <TouchableOpacity onPress={() => setSelectedStudentDetail(null)} style={styles.backButtonHeader}>
+                  <Text style={{ fontSize: 24, color: theme.primary }}>←</Text>
+                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: theme.primary }]}>{selectedStudentDetail.studentName}</Text>
+                <View style={{ width: 40 }} />
+              </View>
+
+              <ScrollView contentContainerStyle={styles.listContainer}>
+                <View style={[styles.infoCard, { backgroundColor: theme.surface, marginBottom: 15 }]}>
+                  <View>
+                    <Text style={{ color: theme.textSecondary, fontSize: 14 }}>Genel Ortalama (Ok Başına)</Text>
+                    <Text style={{ color: theme.primary, fontSize: 32, fontWeight: 'bold' }}>{selectedStudentDetail.average}</Text>
+                  </View>
+                </View>
+
+                {(!selectedStudentDetail.seriesScores || selectedStudentDetail.seriesScores.length === 0) ? (
+                  <View style={[styles.emptyContainer, { marginTop: 50 }]}>
+                    <Text style={{ color: theme.textSecondary, textAlign: 'center' }}>Bu eski kayıt için detaylı tur verisi bulunamadı.</Text>
+                  </View>
+                ) : (
+                  selectedStudentDetail.seriesScores.map((score: number, idx: number) => {
+                    const arrowsPerRound = parseInt(selectedHistoryItem.arrowsPerRound);
+                    const roundAvg = (score / arrowsPerRound).toFixed(2);
+                    const overallAvg = parseFloat(selectedStudentDetail.average);
+                    const currentRoundAvg = parseFloat(roundAvg);
+
+                    let avgColor = theme.text;
+                    if (currentRoundAvg > overallAvg) avgColor = '#4CAF50';
+                    else if (currentRoundAvg < overallAvg) avgColor = '#FF3131';
+
+                    return (
+                      <View key={idx} style={[styles.historyCard, { backgroundColor: theme.surface, marginBottom: 8, paddingVertical: 15 }]}>
+                        <View>
+                          <Text style={[styles.historyDate, { color: theme.text }]}>{idx + 1}. Tur</Text>
+                          <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{arrowsPerRound} Ok Atıldı</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={{ color: theme.primary, fontSize: 20, fontWeight: 'bold' }}>{score} Puan</Text>
+                          <Text style={{ color: avgColor, fontSize: 12, fontWeight: '600' }}>Ort: {roundAvg}</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
+            </View>
           </Modal>
         )}
       </View>

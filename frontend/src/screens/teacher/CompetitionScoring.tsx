@@ -18,7 +18,7 @@ interface CompetitionScoringProps {
   rounds: number;
   arrowsPerRound: number;
   onBack: () => void;
-  onStatusChange?: (isFinished: boolean, totalScore: number) => void;
+  onStatusChange?: (isFinished: boolean, totalScore: number, completedRounds: number, seriesScores: number[]) => void;
   theme: any;
   themeMode: 'dark' | 'light';
 }
@@ -62,9 +62,11 @@ export default function CompetitionScoring({
     const oldScore = seriesScores[currentSeries - 1] || 0;
     const newTotal = totalScore - oldScore + currentScore;
     const willFinish = currentSeries >= totalSeries;
+    const updatedSeriesScores = [...seriesScores];
+    updatedSeriesScores[currentSeries - 1] = currentScore;
     
     handleSaveScore();
-    onStatusChangeRef.current?.(willFinish, newTotal);
+    onStatusChangeRef.current?.(willFinish, newTotal, currentSeries, updatedSeriesScores);
   };
 
   if (isFinished) {

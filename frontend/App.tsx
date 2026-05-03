@@ -102,9 +102,17 @@ export default function App() {
 
   // ROL SEÇİM EKRANI
   if (role === null) {
+    const isDark = themeMode === 'dark';
+    const bgColor = isDark ? '#040B14' : '#F8FAFC';
+    const textColor = isDark ? '#64FFDA' : '#0F172A';
+    const subTextColor = isDark ? '#E0FBFF' : '#64748B';
+    const borderColor = isDark ? 'rgba(100, 255, 218, 0.3)' : 'rgba(0, 0, 0, 0.1)';
+    const separatorColor = isDark ? 'rgba(100, 255, 218, 0.2)' : 'rgba(0, 0, 0, 0.05)';
+    const imageBg = isDark ? 'transparent' : '#FFFFFF';
+
     return (
-      <View style={[styles.roleContainer, { backgroundColor: '#040B14' }]}>
-        <StatusBar barStyle="light-content" />
+      <View style={[styles.roleContainer, { backgroundColor: bgColor }]}>
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={bgColor} />
         
         {/* ÖĞRENCİ SEÇENEĞİ */}
         <TouchableOpacity 
@@ -115,14 +123,14 @@ export default function App() {
           <View style={styles.roleContent}>
             <Image 
               source={require('./assets/student_role.png')} 
-              style={styles.roleImage}
+              style={[styles.roleImage, { borderColor: borderColor, backgroundColor: imageBg, borderWidth: 1 }]}
             />
-            <Text style={styles.roleTitleSmall}>ÖĞRENCİ</Text>
-            <Text style={styles.roleSubtitleSmall}>Antrenman ve Gelişim</Text>
+            <Text style={[styles.roleTitleSmall, { color: textColor }]}>ÖĞRENCİ</Text>
+            <Text style={[styles.roleSubtitleSmall, { color: subTextColor }]}>Antrenman ve Gelişim</Text>
           </View>
         </TouchableOpacity>
 
-        <View style={{ height: 2, backgroundColor: 'rgba(100, 255, 218, 0.2)', width: '80%', alignSelf: 'center' }} />
+        <View style={{ height: 2, backgroundColor: separatorColor, width: '80%', alignSelf: 'center' }} />
 
         {/* ÖĞRETMEN SEÇENEĞİ */}
         <TouchableOpacity 
@@ -133,10 +141,10 @@ export default function App() {
           <View style={styles.roleContent}>
             <Image 
               source={require('./assets/teacher_role.png')} 
-              style={styles.roleImage}
+              style={[styles.roleImage, { borderColor: borderColor, backgroundColor: imageBg, borderWidth: 1 }]}
             />
-            <Text style={styles.roleTitleSmall}>ÖĞRETMEN</Text>
-            <Text style={styles.roleSubtitleSmall}>Analiz ve Takip</Text>
+            <Text style={[styles.roleTitleSmall, { color: textColor }]}>ÖĞRETMEN</Text>
+            <Text style={[styles.roleSubtitleSmall, { color: subTextColor }]}>Analiz ve Takip</Text>
           </View>
         </TouchableOpacity>
       </View>
