@@ -117,13 +117,19 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   studentName: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   studentAge: {
-    fontSize: 18,
-    marginTop: 6,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  inspectButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginLeft: 5,
   },
   emptyContainer: {
     marginTop: 150,
@@ -293,5 +299,47 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 5,
+  },
+  inspectButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    borderRadius: 10,
+    marginLeft: 10,
+  },
+  historyItemCard: {
+    padding: 20,
+    borderRadius: 20,
+    marginBottom: 15,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  sessionInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  sessionType: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  sessionDate: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sessionScore: {
+    fontSize: 24,
+    fontWeight: '900',
+  },
+  sessionDetail: {
+    fontSize: 14,
+    marginTop: 5,
   },
 });

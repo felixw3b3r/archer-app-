@@ -1,13 +1,16 @@
 const mongoose = require('mongoose');
 
 const studentDataSchema = new mongoose.Schema({
-  userId: { type: String, required: true, index: true },
+  type: { type: String, default: 'training' },
+  userId: { type: String, required: true },
   date: { type: String, required: true },
   totalScore: { type: Number, required: true },
-  totalSeries: { type: Number, required: true },
-  arrowsPerSeries: { type: Number, required: true },
-  seriesScores: [Number], // Her turun toplam puanını tutan dizi
+  totalSeries: { type: Number },
+  arrowsPerSeries: { type: Number },
+  seriesScores: [Number],
+  average: { type: String },
+  duration: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 
-module.exports = mongoose.model('StudentData', studentDataSchema);
+module.exports = studentDataSchema;

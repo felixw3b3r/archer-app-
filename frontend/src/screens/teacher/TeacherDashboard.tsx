@@ -24,7 +24,8 @@ import {
 interface Student {
   id: string;
   name: string;
-  age: string;
+  surname: string;
+  dob: string;
 }
 
 interface TeacherDashboardProps {
@@ -35,11 +36,16 @@ interface TeacherDashboardProps {
 }
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMode, theme, onLogout }) => {
-  const [view, setView] = useState<'overview' | 'list' | 'competition_setup' | 'competition_active' | 'competition_history'>('overview');
+  const [view, setView] = useState<'overview' | 'list' | 'competition_setup' | 'competition_active' | 'competition_history' | 'student_detail'>('overview');
   const [students, setStudents] = useState<Student[]>([]);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentHistory, setStudentHistory] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newAge, setNewAge] = useState('');
+  const [newSurname, setNewSurname] = useState('');
+  const [newDob, setNewDob] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Yarışma Ayarları
   const [compRounds, setCompRounds] = useState('5');
@@ -63,9 +69,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   useEffect(() => {
     const loadInitialData = async () => {
       try {
+        const userDataStr = await AsyncStorage.getItem('@user_data');
+        if (!userDataStr) return;
+        const userData = JSON.parse(userDataStr);
+        const teacherId = userData._id;
+
         // 1. Yarışma Geçmişini Çek
         try {
-          const dbHistory = await getTeacherCompetitions('test_teacher_1');
+          const dbHistory = await getTeacherCompetitions(teacherId);
           if (dbHistory && dbHistory.length > 0) {
             setCompetitionHistory(dbHistory);
             await AsyncStorage.setItem('@competition_history', JSON.stringify(dbHistory));
@@ -79,24 +90,21 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
           if (historyData) setCompetitionHistory(JSON.parse(historyData));
         }
         
-        // 2. Öğrenci Listesini Çek
+        // 2. TÜM ÖĞRENCİLERİ ÇEK
         try {
-          const dbStudents = await getTeacherStudents('test_teacher_1');
+          const { getAllStudents } = require('../../services/api');
+          const dbStudents = await getAllStudents();
           if (dbStudents && dbStudents.length > 0) {
             const mapped = dbStudents.map((s: any) => ({
               id: s._id,
               name: s.name,
-              age: s.age.toString()
+              surname: s.surname,
+              dob: s.dob
             }));
             setStudents(mapped);
-          } else {
-            const studentsData = await AsyncStorage.getItem('@students_list');
-            if (studentsData) setStudents(JSON.parse(studentsData));
           }
         } catch (apiError) {
-          console.log("Öğrenci listesi sunucudan alınamadı, lokale bakılıyor.");
-          const studentsData = await AsyncStorage.getItem('@students_list');
-          if (studentsData) setStudents(JSON.parse(studentsData));
+          console.log("Öğrenci listesi alınamadı");
         }
       } catch (e) {
         console.error("Veriler yüklenemedi", e);
@@ -107,6 +115,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
   const saveCompetitionToHistory = async () => {
     try {
+      const userDataStr = await AsyncStorage.getItem('@user_data');
+      const teacherId = userDataStr ? JSON.parse(userDataStr)._id : 'test_teacher_1';
+
       const compEndTime = Date.now();
       const totalCompDuration = compStartTime ? Math.floor((compEndTime - compStartTime) / 1000) : 0;
 
@@ -131,7 +142,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
       const now = new Date();
       const newRecord = {
-        teacherId: 'test_teacher_1', // Backend için gerekli
+        teacherId: teacherId, // Backend için gerekli
         date: now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
         rounds: safeCompRounds.toString(),
         arrowsPerRound: safeCompArrows.toString(),
@@ -166,69 +177,80 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
     );
   };
 
-  const handleAddStudent = () => {
-    const trimmedName = newName.trim();
-    const ageNum = parseInt(newAge, 10);
-
-    if (!trimmedName || !newAge.trim()) {
-      Alert.alert("Hata", "İsim ve Yaş alanları zorunludur!");
-      return;
-    }
-
-    if (trimmedName.length < 3) {
-      Alert.alert("Hata", "Öğrenci ismi en az 3 karakter olmalıdır!");
-      return;
-    }
-
-    const nameRegex = /^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/;
-    if (!nameRegex.test(trimmedName)) {
-      Alert.alert("Hata", "İsim sadece harf ve boşluk içerebilir, sayı veya özel karakter kullanılamaz!");
-      return;
-    }
-
-    if (isNaN(ageNum) || ageNum < 9 || ageNum > 29) {
-      Alert.alert("Hata", "Yaş sınırı 9 - 29 arası olmalıdır!");
-      return;
-    }
-
-    const addStudentToDB = async () => {
-      try {
-        const savedStudent = await addTeacherStudent({
-          teacherId: 'test_teacher_1',
-          name: trimmedName,
-          age: ageNum
-        });
-        
-        const newStudent: Student = {
-          id: savedStudent._id,
-          name: savedStudent.name,
-          age: savedStudent.age.toString(),
-        };
-
-        const updatedStudents = [newStudent, ...students];
-        setStudents(updatedStudents);
-        // Yedek olarak yine de lokale kaydet
-        await AsyncStorage.setItem('@students_list', JSON.stringify(updatedStudents));
-        
-      } catch (err) {
-        console.error("Öğrenci veritabanına eklenemedi", err);
-        // Fallback
-        const newStudent: Student = {
-          id: Date.now().toString(),
-          name: trimmedName,
-          age: newAge,
-        };
-        const updatedStudents = [newStudent, ...students];
-        setStudents(updatedStudents);
-        await AsyncStorage.setItem('@students_list', JSON.stringify(updatedStudents));
+  // Doğum tarihinden yaş hesaplayan yardımcı fonksiyon
+  const calculateAge = (dobString: string) => {
+    try {
+      const [day, month, year] = dobString.split('/').map(Number);
+      const birthDate = new Date(year, month - 1, day);
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
       }
-      
-      setNewName('');
-      setNewAge('');
-      setIsModalVisible(false);
-    };
+      return age;
+    } catch (e) {
+      return "??";
+    }
+  };
 
-    addStudentToDB();
+  const handleInspectStudent = async (student: Student) => {
+    setSelectedStudent(student);
+    setView('student_detail');
+    setIsLoadingHistory(true);
+    try {
+      const { getStudentSessions } = require('../../services/api');
+      const history = await getStudentSessions(student.id);
+      setStudentHistory(history || []);
+    } catch (err) {
+      console.error("Öğrenci geçmişi alınamadı", err);
+      Alert.alert("Hata", "Öğrenci geçmişi yüklenemedi.");
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleAddStudent = async () => {
+    const trimmedName = newName.trim();
+    const trimmedSurname = newSurname.trim();
+
+    if (!trimmedName || !trimmedSurname || !newDob.trim()) {
+      Alert.alert("Hata", "Tüm alanlar zorunludur!");
+      return;
+    }
+
+    if (!/^\d{2}\/\d{2}\/\d{4}$/.test(newDob)) {
+      Alert.alert("Hata", "Doğum tarihi GG/AA/YYYY formatında olmalıdır!");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { addStudentByTeacher } = require('../../services/api');
+      const savedStudent = await addStudentByTeacher({
+        name: trimmedName,
+        surname: trimmedSurname,
+        dob: newDob
+      });
+      
+      const newStudent: Student = {
+        id: savedStudent._id,
+        name: savedStudent.name,
+        surname: savedStudent.surname,
+        dob: savedStudent.dob
+      };
+
+      setStudents(prev => [newStudent, ...prev]);
+      setNewName('');
+      setNewSurname('');
+      setNewDob('');
+      setIsModalVisible(false);
+      Alert.alert("Başarılı", "Öğrenci sisteme kaydedildi.");
+    } catch (err: any) {
+      Alert.alert("Hata", err.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ÖĞRENCİ LİSTESİ GÖRÜNÜMÜ
@@ -257,9 +279,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                   <Text style={{ fontSize: 40 }}>👤</Text>
                 </View>
                 <View style={styles.studentInfo}>
-                  <Text style={[styles.studentName, { color: theme.text }]}>{student.name.toUpperCase()}</Text>
-                  <Text style={[styles.studentAge, { color: theme.textSecondary }]}>{student.age} Yaşında</Text>
+                  <Text style={[styles.studentName, { color: theme.text }]}>
+                    {student.name.toUpperCase()} {student.surname.toUpperCase()}
+                  </Text>
+                  <Text style={[styles.studentAge, { color: theme.textSecondary }]}>
+                    {calculateAge(student.dob)} Yaşında ({student.dob})
+                  </Text>
                 </View>
+                <TouchableOpacity 
+                  style={[styles.inspectButton, { backgroundColor: theme.primary + '30' }]}
+                  onPress={() => handleInspectStudent(student)}
+                >
+                  <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 12 }}>İNCELE</Text>
+                </TouchableOpacity>
               </View>
             ))
           )}
@@ -272,7 +304,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
               
               <TextInput 
                 style={[styles.input, { color: theme.text, borderColor: theme.border }]} 
-                placeholder="Ad Soyad"
+                placeholder="Ad"
                 placeholderTextColor={theme.textSecondary}
                 value={newName}
                 onChangeText={setNewName}
@@ -280,19 +312,36 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
               <TextInput 
                 style={[styles.input, { color: theme.text, borderColor: theme.border }]} 
-                placeholder="Yaş"
+                placeholder="Soyad"
                 placeholderTextColor={theme.textSecondary}
-                keyboardType="numeric"
-                value={newAge}
-                onChangeText={setNewAge}
+                value={newSurname}
+                onChangeText={setNewSurname}
+              />
+
+              <TextInput 
+                style={[styles.input, { color: theme.text, borderColor: theme.border }]} 
+                placeholder="Doğum Tarihi (GG/AA/YYYY)"
+                placeholderTextColor={theme.textSecondary}
+                value={newDob}
+                maxLength={10}
+                onChangeText={(text) => {
+                  // Otomatik slash ekleme
+                  if (text.length === 2 && newDob.length === 1) text += '/';
+                  if (text.length === 5 && newDob.length === 4) text += '/';
+                  setNewDob(text);
+                }}
               />
 
               <View style={styles.modalButtons}>
                 <TouchableOpacity onPress={() => setIsModalVisible(false)} style={styles.cancelButton}>
                   <Text style={{ color: theme.textSecondary }}>İptal</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={handleAddStudent} style={[styles.saveButton, { backgroundColor: theme.primary }]}>
-                  <Text style={{ color: '#000', fontWeight: 'bold' }}>EKLE</Text>
+                <TouchableOpacity 
+                  onPress={handleAddStudent} 
+                  style={[styles.saveButton, { backgroundColor: theme.primary, opacity: isLoading ? 0.7 : 1 }]}
+                  disabled={isLoading}
+                >
+                  <Text style={{ color: '#000', fontWeight: 'bold' }}>{isLoading ? '...' : 'KAYDET'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -344,7 +393,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                 ]}
                 onPress={() => toggleStudentSelection(student.id)}
               >
-                <Text style={[styles.studentNameSmall, { color: theme.text }]}>{student.name}</Text>
+                <Text style={[styles.studentNameSmall, { color: theme.text }]}>
+                  {student.name} {student.surname}
+                </Text>
                 <View style={[styles.plusButton, { backgroundColor: isSelected ? theme.primary : theme.border }]}>
                   <Text style={{ color: isSelected ? '#000' : theme.textSecondary, fontWeight: 'bold' }}>{isSelected ? '✓' : '+'}</Text>
                 </View>
@@ -446,7 +497,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                       <Text style={{ fontSize: 40 }}>{isFinished ? '✅' : (isMissed ? '⚠️' : '👤')}</Text>
                     </View>
                     <View style={styles.studentInfo}>
-                      <Text style={[styles.studentName, { color: theme.text }]}>{student.name.toUpperCase()}</Text>
+                      <Text style={[styles.studentName, { color: theme.text }]}>
+                        {student.name.toUpperCase()} {student.surname.toUpperCase()}
+                      </Text>
                       <Text style={[styles.studentAge, { color: isMissed ? (themeMode === 'dark' ? '#E0B0FF' : '#D32F2F') : theme.textSecondary }]}>
                         {isFinished ? 'Atışlar Tamamlandı' : (isMissed ? 'PUAN GİRİLMEMİŞ!' : 'Puan Girisi Icin Tikla')}
                       </Text>
@@ -526,7 +579,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                           </View>
 
                           <View style={styles.resultInfo}>
-                            <Text style={[styles.studentName, { color: theme.text, fontSize: 18 }]}>{student.name.toUpperCase()}</Text>
+                            <Text style={[styles.studentName, { color: theme.text, fontSize: 18 }]}>
+                              {student.name.toUpperCase()} {student.surname.toUpperCase()}
+                            </Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                <Text style={{ color: theme.textSecondary, fontSize: 11 }}>Ort: {avg} | </Text>
                                <Text style={{ color: theme.textSecondary, fontSize: 11 }}>Süre: {Math.floor(duration / 60)}dk {duration % 60}sn</Text>
@@ -554,7 +609,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             }}
           >
             <CompetitionScoring 
-              studentName={student.name}
+              studentName={`${student.name} ${student.surname}`}
               rounds={parseInt(compRounds)}
               arrowsPerRound={parseInt(compArrows)}
               onBack={() => {
@@ -583,6 +638,137 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             />
           </View>
         ))}
+      </View>
+    );
+  }
+
+  // ÖĞRENCİ İNCELEME DETAY EKRANI
+  if (view === 'student_detail') {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <View style={[styles.header, { backgroundColor: theme.surface }]}>
+          <TouchableOpacity onPress={() => setView('list')} style={styles.backButtonHeader}>
+            <Text style={{ fontSize: 24, color: theme.primary }}>←</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.primary }]}>Öğrenci İncele</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <View style={[styles.infoCard, { backgroundColor: theme.surface, margin: 15 }]}>
+          <View style={styles.ppArea}>
+            <Text style={{ fontSize: 40 }}>👤</Text>
+          </View>
+          <View style={styles.infoTextContainer}>
+            <Text style={[styles.welcomeText, { color: theme.text }]}>
+              {selectedStudent?.name} {selectedStudent?.surname}
+            </Text>
+            <Text style={[styles.subText, { color: theme.textSecondary }]}>
+              {calculateAge(selectedStudent?.dob || '')} Yaşında ({selectedStudent?.dob})
+            </Text>
+            {studentHistory.length > 0 && (
+              <Text style={[styles.subText, { color: theme.primary, fontWeight: 'bold', marginTop: 4 }]}>
+                Genel Ortalama: {(
+                  studentHistory.reduce((acc, s) => acc + (s.totalScore || 0), 0) / 
+                  studentHistory.reduce((acc, s) => acc + ((s.totalSeries || 0) * (s.arrowsPerSeries || 0)), 0)
+                ).toFixed(2)}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        <Text style={[styles.sectionTitle, { color: theme.text, marginLeft: 20 }]}>Geçmiş Antrenman ve Yarışmalar</Text>
+
+        <ScrollView contentContainerStyle={styles.listContainer}>
+          {isLoadingHistory ? (
+            <View style={styles.emptyContainer}>
+              <Text style={{ color: theme.textSecondary }}>Yükleniyor...</Text>
+            </View>
+          ) : studentHistory.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={{ color: theme.textSecondary }}>Henüz kayıt yok.</Text>
+            </View>
+          ) : (() => {
+            // Genel Ortalama Hesapla
+            const totalScoreAll = studentHistory.reduce((acc, s) => acc + (s.totalScore || 0), 0);
+            const totalArrowsAll = studentHistory.reduce((acc, s) => acc + ((s.totalSeries || 0) * (s.arrowsPerSeries || 0)), 0);
+            const generalAvg = totalArrowsAll > 0 ? totalScoreAll / totalArrowsAll : 0;
+
+            return studentHistory.map((session, index) => {
+              const sessionAvg = session.totalScore / (session.totalSeries * session.arrowsPerSeries);
+              
+              // Antrenman Renk Belirleme (Genel Ortalamaya Göre)
+              let sessionColor = theme.textSecondary;
+              if (sessionAvg > generalAvg + 0.01) sessionColor = '#4CAF50'; // Yeşil
+              else if (sessionAvg < generalAvg - 0.01) sessionColor = '#FF5252'; // Kırmızı
+
+              return (
+                <View key={session._id || index} style={[styles.historyItemCard, { backgroundColor: theme.surface }]}>
+                  <View style={styles.sessionInfo}>
+                    <Text style={[styles.sessionType, { 
+                      backgroundColor: session.type === 'competition' ? theme.accent + '30' : theme.primary + '30',
+                      color: session.type === 'competition' ? theme.accent : theme.primary
+                    }]}>
+                      {session.type === 'competition' ? 'YARIŞMA' : 'ANTRENMAN'}
+                    </Text>
+                    <Text style={[styles.sessionDate, { color: theme.textSecondary }]}>{session.date}</Text>
+                  </View>
+                  
+                  <View style={{ marginBottom: 15 }}>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12, marginBottom: 8, fontWeight: 'bold' }}>TUR PUANLARI:</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                      {(session.seriesScores || []).map((score: number, sIdx: number) => {
+                        // Tur Rengi (Antrenman Ortalamasına Göre)
+                        const roundAvg = score / session.arrowsPerSeries;
+                        let roundBg = 'rgba(128,128,128,0.1)';
+                        let roundText = theme.text;
+                        
+                        if (roundAvg > sessionAvg + 0.01) {
+                          roundBg = 'rgba(76, 175, 80, 0.2)';
+                          roundText = '#4CAF50';
+                        } else if (roundAvg < sessionAvg - 0.01) {
+                          roundBg = 'rgba(255, 82, 82, 0.2)';
+                          roundText = '#FF5252';
+                        }
+
+                        return (
+                          <View key={sIdx} style={{ 
+                            backgroundColor: roundBg, 
+                            paddingHorizontal: 8, 
+                            paddingVertical: 4, 
+                            borderRadius: 6, 
+                            marginRight: 6, 
+                            marginBottom: 6,
+                            minWidth: 35,
+                            alignItems: 'center',
+                            borderWidth: 0.5,
+                            borderColor: roundText + '40'
+                          }}>
+                            <Text style={{ color: roundText, fontSize: 12, fontWeight: 'bold' }}>{score}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: 'rgba(128,128,128,0.1)', paddingTop: 10 }}>
+                    <View>
+                      <Text style={[styles.sessionDetail, { color: theme.text, fontWeight: 'bold' }]}>
+                        {session.totalSeries} Tur x {session.arrowsPerSeries} Ok
+                      </Text>
+                      <Text style={[styles.sessionDetail, { color: sessionColor, fontSize: 13, fontWeight: 'bold' }]}>
+                        Ok Başı Ortalama: {sessionAvg.toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={{ color: theme.textSecondary, fontSize: 10 }}>TOPLAM PUAN</Text>
+                      <Text style={[styles.sessionScore, { color: theme.primary }]}>{session.totalScore}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            });
+          })()}
+        </ScrollView>
       </View>
     );
   }

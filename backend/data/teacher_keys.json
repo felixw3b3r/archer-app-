@@ -1,0 +1,37 @@
+[
+  {
+    "key": "XYZ78",
+    "isUsed": true,
+    "usedBy": "Alpertunga Eynel"
+  },
+  {
+    "key": "HOCA1",
+    "isUsed": true,
+    "usedBy": "Test Teacher"
+  },
+  {
+    "key": "K9P2X",
+    "isUsed": true,
+    "usedBy": "Deneme Kullanıcı"
+  },
+  {
+    "key": "B5M7W",
+    "isUsed": false,
+    "usedBy": null
+  },
+  {
+    "key": "R4T9Q",
+    "isUsed": false,
+    "usedBy": null
+  },
+  {
+    "key": "L2N8S",
+    "isUsed": false,
+    "usedBy": null
+  },
+  {
+    "key": "Z7V3H",
+    "isUsed": false,
+    "usedBy": null
+  }
+]

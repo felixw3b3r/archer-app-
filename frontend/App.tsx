@@ -10,11 +10,13 @@ import {
   SafeAreaView, 
   StatusBar, 
   Image,
-  ImageBackground
+  ImageBackground,
+  Alert
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StudentDashboard from './src/screens/student/StudentDashboard';
 import TeacherDashboard from './src/screens/teacher/TeacherDashboard';
+import AuthScreen from './src/screens/auth/AuthScreen';
 import { colors } from './src/theme/colors';
 
 const { width, height } = Dimensions.get('window');
@@ -22,10 +24,12 @@ const { width, height } = Dimensions.get('window');
 export default function App() {
   const systemColorScheme = useColorScheme();
   const [role, setRole] = useState<'student' | 'teacher' | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [currentScreen, setCurrentScreen] = useState('Home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(systemColorScheme === 'dark' ? 'dark' : 'light');
   const slideAnim = useRef(new Animated.Value(width * 0.7)).current;
+  const [isReady, setIsReady] = useState(false);
 
   // Başlangıçta Tema ve Rolü yükle
   useEffect(() => {
@@ -33,6 +37,7 @@ export default function App() {
       try {
         const savedTheme = await AsyncStorage.getItem('@theme_mode');
         const savedRole = await AsyncStorage.getItem('@user_role');
+        const savedUserData = await AsyncStorage.getItem('@user_data');
         
         if (savedTheme === 'dark' || savedTheme === 'light') {
           setThemeMode(savedTheme);
@@ -40,27 +45,69 @@ export default function App() {
         if (savedRole === 'student' || savedRole === 'teacher') {
           setRole(savedRole as 'student' | 'teacher');
         }
+        if (savedUserData) {
+          setUser(JSON.parse(savedUserData));
+        }
       } catch (e) {
         console.error("Veriler yüklenemedi", e);
+      } finally {
+        setIsReady(true);
       }
     };
     loadData();
   }, []);
 
   const selectRole = async (selectedRole: 'student' | 'teacher') => {
-    setRole(selectedRole);
     try {
+      // Eğer halihazırda bir kullanıcı verisi varsa ve rolleri farklıysa, 
+      // sadece uyarı ver ama rolü seçmesine izin verme (önce çıkış yapmalı)
+      const savedUserData = await AsyncStorage.getItem('@user_data');
+      if (savedUserData) {
+        const userData = JSON.parse(savedUserData);
+        
+        // ÖĞRETMEN AYRICALIĞI: Eğer hoca ise her iki tarafa da geçebilir.
+        // Ama öğrenci ise sadece öğrenci tarafında kalabilir.
+        if (userData.role === 'student' && selectedRole === 'teacher') {
+          Alert.alert(
+            "Erişim Kilitli!",
+            "Öğrenci hesabı ile öğretmen paneline giriş yapamazsınız.",
+            [{ text: "Anladım" }]
+          );
+          return;
+        }
+      }
+
       await AsyncStorage.setItem('@user_role', selectedRole);
+      setRole(selectedRole);
     } catch (e) {
-      console.error("Rol kaydedilemedi", e);
+      console.error("Rol seçimi sırasında hata:", e);
+      Alert.alert("Hata", "Rol bilgisi kaydedilemedi.");
+    }
+  };
+
+  const onLogin = async (selectedRole: 'student' | 'teacher', userData: any) => {
+    try {
+      // Giriş yaparken her ihtimale karşı verileri temizleyip taze kaydedelim
+      await AsyncStorage.multiSet([
+        ['@user_role', selectedRole],
+        ['@user_data', JSON.stringify(userData)]
+      ]);
+      
+      setRole(selectedRole);
+      setUser(userData);
+    } catch (e) {
+      console.error("Giriş verileri kaydedilirken hata:", e);
+      Alert.alert("Hata", "Giriş bilgileri cihaz hafızasına kaydedilemedi.");
     }
   };
 
   const logoutRole = async () => {
     setRole(null);
+    setUser(null);
     setIsMenuOpen(false);
     try {
       await AsyncStorage.removeItem('@user_role');
+      await AsyncStorage.removeItem('@user_data');
     } catch (e) {
       console.error("Rol silinemedi", e);
     }
@@ -96,58 +143,40 @@ export default function App() {
   };
 
   const navigateTo = (screen: string) => {
+    // ÖĞRENCİ KISITLAMASI: Eğer öğrenci ise ve öğretmen paneline (Home ekranı aslında hoca paneli oluyor hoca modunda) 
+    // geçmeye çalışıyorsa veya hoca ekranlarını istiyorsa ENGELLE
+    if (role === 'student' && screen === 'TeacherDashboard') {
+      Alert.alert(
+        "Yetkisiz Erişim!",
+        "Öğrenci hesabı ile öğretmen paneline giriş yapamazsınız. Lütfen önce çıkış yapın.",
+        [{ text: "Anladım" }]
+      );
+      return;
+    }
+    
     setCurrentScreen(screen);
     toggleMenu();
   };
 
-  // ROL SEÇİM EKRANI
-  if (role === null) {
-    const isDark = themeMode === 'dark';
-    const bgColor = isDark ? '#040B14' : '#F8FAFC';
-    const textColor = isDark ? '#64FFDA' : '#0F172A';
-    const subTextColor = isDark ? '#E0FBFF' : '#64748B';
-    const borderColor = isDark ? 'rgba(100, 255, 218, 0.3)' : 'rgba(0, 0, 0, 0.1)';
-    const separatorColor = isDark ? 'rgba(100, 255, 218, 0.2)' : 'rgba(0, 0, 0, 0.05)';
-    const imageBg = isDark ? 'transparent' : '#FFFFFF';
+  if (!isReady) return null;
 
+  // AUTH / GİRİŞ KONTROLÜ
+  // Eğer kullanıcı girişi yapılmamışsa AuthScreen'i göster
+  if (user === null) {
     return (
-      <View style={[styles.roleContainer, { backgroundColor: bgColor }]}>
-        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={bgColor} />
-        
-        {/* ÖĞRENCİ SEÇENEĞİ */}
-        <TouchableOpacity 
-          style={styles.roleCard} 
-          activeOpacity={0.7}
-          onPress={() => selectRole('student')}
-        >
-          <View style={styles.roleContent}>
-            <Image 
-              source={require('./assets/student_role.png')} 
-              style={[styles.roleImage, { borderColor: borderColor, backgroundColor: imageBg, borderWidth: 1 }]}
-            />
-            <Text style={[styles.roleTitleSmall, { color: textColor }]}>ÖĞRENCİ</Text>
-            <Text style={[styles.roleSubtitleSmall, { color: subTextColor }]}>Antrenman ve Gelişim</Text>
-          </View>
-        </TouchableOpacity>
-
-        <View style={{ height: 2, backgroundColor: separatorColor, width: '80%', alignSelf: 'center' }} />
-
-        {/* ÖĞRETMEN SEÇENEĞİ */}
-        <TouchableOpacity 
-          style={styles.roleCard} 
-          activeOpacity={0.7}
-          onPress={() => selectRole('teacher')}
-        >
-          <View style={styles.roleContent}>
-            <Image 
-              source={require('./assets/teacher_role.png')} 
-              style={[styles.roleImage, { borderColor: borderColor, backgroundColor: imageBg, borderWidth: 1 }]}
-            />
-            <Text style={[styles.roleTitleSmall, { color: textColor }]}>ÖĞRETMEN</Text>
-            <Text style={[styles.roleSubtitleSmall, { color: subTextColor }]}>Analiz ve Takip</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
+      <AuthScreen 
+        themeMode={themeMode} 
+        onLogin={async (selectedRole, userData) => {
+          setRole(selectedRole);
+          setUser(userData);
+          try {
+            await AsyncStorage.setItem('@user_role', selectedRole);
+            await AsyncStorage.setItem('@user_data', JSON.stringify(userData));
+          } catch (e) {
+            console.error("Giriş bilgileri kaydedilemedi", e);
+          }
+        }} 
+      />
     );
   }
 

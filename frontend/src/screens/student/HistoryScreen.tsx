@@ -15,8 +15,12 @@ export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: (
 
   const loadHistory = async () => {
     try {
+      const userDataStr = await AsyncStorage.getItem('@user_data');
+      if (!userDataStr) return;
+      const userData = JSON.parse(userDataStr);
+      
       // Önce bilgisayarındaki backend'den güncel veriyi çekmeyi dener
-      const serverData = await getStudentSessions('test_user_1');
+      const serverData = await getStudentSessions(userData._id);
       if (serverData && serverData.length > 0) {
         setHistory(serverData);
         // İstersen burada çevrimdışı kullanım için AsyncStorage'a da yedekleyebilirsin

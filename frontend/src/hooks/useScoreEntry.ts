@@ -99,8 +99,15 @@ export const useScoreEntry = (initialSeries = 7, initialArrows = 5) => {
 
           // 1. MONGODB'YE KAYDET
           try {
+            const userDataStr = await AsyncStorage.getItem('@user_data');
+            let userId = 'test_user_1';
+            if (userDataStr) {
+              const userData = JSON.parse(userDataStr);
+              userId = userData._id;
+            }
+            
             await saveStudentSession({
-              userId: 'test_user_1',
+              userId: userId,
               date: dateString,
               totalScore: finalTotal,
               totalSeries,
