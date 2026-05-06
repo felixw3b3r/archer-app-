@@ -14,6 +14,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
 import { styles } from './TeacherDashboard.styles';
 import CompetitionScoring from './CompetitionScoring';
+import { 
+  getTeacherStudents, 
+  addTeacherStudent, 
+  getTeacherCompetitions, 
+  saveTeacherCompetition 
+} from '../../services/api';
 
 interface Student {
   id: string;
@@ -57,11 +63,41 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        const historyData = await AsyncStorage.getItem('@competition_history');
-        if (historyData) setCompetitionHistory(JSON.parse(historyData));
+        // 1. Yarışma Geçmişini Çek
+        try {
+          const dbHistory = await getTeacherCompetitions('test_teacher_1');
+          if (dbHistory && dbHistory.length > 0) {
+            setCompetitionHistory(dbHistory);
+            await AsyncStorage.setItem('@competition_history', JSON.stringify(dbHistory));
+          } else {
+            const historyData = await AsyncStorage.getItem('@competition_history');
+            if (historyData) setCompetitionHistory(JSON.parse(historyData));
+          }
+        } catch (apiErr) {
+          console.log("Yarışma geçmişi sunucudan alınamadı, lokale bakılıyor.");
+          const historyData = await AsyncStorage.getItem('@competition_history');
+          if (historyData) setCompetitionHistory(JSON.parse(historyData));
+        }
         
-        const studentsData = await AsyncStorage.getItem('@students_list');
-        if (studentsData) setStudents(JSON.parse(studentsData));
+        // 2. Öğrenci Listesini Çek
+        try {
+          const dbStudents = await getTeacherStudents('test_teacher_1');
+          if (dbStudents && dbStudents.length > 0) {
+            const mapped = dbStudents.map((s: any) => ({
+              id: s._id,
+              name: s.name,
+              age: s.age.toString()
+            }));
+            setStudents(mapped);
+          } else {
+            const studentsData = await AsyncStorage.getItem('@students_list');
+            if (studentsData) setStudents(JSON.parse(studentsData));
+          }
+        } catch (apiError) {
+          console.log("Öğrenci listesi sunucudan alınamadı, lokale bakılıyor.");
+          const studentsData = await AsyncStorage.getItem('@students_list');
+          if (studentsData) setStudents(JSON.parse(studentsData));
+        }
       } catch (e) {
         console.error("Veriler yüklenemedi", e);
       }
@@ -95,7 +131,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
       const now = new Date();
       const newRecord = {
-        id: Date.now().toString(),
+        teacherId: 'test_teacher_1', // Backend için gerekli
         date: now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
         rounds: safeCompRounds.toString(),
         arrowsPerRound: safeCompArrows.toString(),
@@ -103,8 +139,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
         results: sortedResults
       };
 
+      // 1. Sunucuya Kaydet ve Yanıtı Al
+      let recordToDisplay = newRecord;
+      try {
+        const savedRecord = await saveTeacherCompetition(newRecord);
+        if (savedRecord && savedRecord._id) {
+          recordToDisplay = savedRecord;
+        }
+        console.log("✅ Yarışma sunucuya başarıyla kaydedildi!");
+      } catch (apiErr) {
+        console.error("❌ Yarışma sunucuya kaydedilemedi", apiErr);
+      }
+
       const safeHistory = Array.isArray(competitionHistory) ? competitionHistory : [];
-      const updatedHistory = [newRecord, ...safeHistory];
+      const updatedHistory = [recordToDisplay, ...safeHistory];
       setCompetitionHistory(updatedHistory);
       await AsyncStorage.setItem('@competition_history', JSON.stringify(updatedHistory));
     } catch (e) {
@@ -143,28 +191,44 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
       return;
     }
 
-    const newStudent: Student = {
-      id: Date.now().toString(),
-      name: trimmedName,
-      age: newAge,
-    };
-
-    const updatedStudents = [newStudent, ...students];
-    setStudents(updatedStudents);
-    
-    // AsyncStorage'a kaydet
-    const saveStudents = async (list: Student[]) => {
+    const addStudentToDB = async () => {
       try {
-        await AsyncStorage.setItem('@students_list', JSON.stringify(list));
-      } catch (e) {
-        console.error("Öğrenciler kaydedilemedi", e);
-      }
-    };
-    saveStudents(updatedStudents);
+        const savedStudent = await addTeacherStudent({
+          teacherId: 'test_teacher_1',
+          name: trimmedName,
+          age: ageNum
+        });
+        
+        const newStudent: Student = {
+          id: savedStudent._id,
+          name: savedStudent.name,
+          age: savedStudent.age.toString(),
+        };
 
-    setNewName('');
-    setNewAge('');
-    setIsModalVisible(false);
+        const updatedStudents = [newStudent, ...students];
+        setStudents(updatedStudents);
+        // Yedek olarak yine de lokale kaydet
+        await AsyncStorage.setItem('@students_list', JSON.stringify(updatedStudents));
+        
+      } catch (err) {
+        console.error("Öğrenci veritabanına eklenemedi", err);
+        // Fallback
+        const newStudent: Student = {
+          id: Date.now().toString(),
+          name: trimmedName,
+          age: newAge,
+        };
+        const updatedStudents = [newStudent, ...students];
+        setStudents(updatedStudents);
+        await AsyncStorage.setItem('@students_list', JSON.stringify(updatedStudents));
+      }
+      
+      setNewName('');
+      setNewAge('');
+      setIsModalVisible(false);
+    };
+
+    addStudentToDB();
   };
 
   // ÖĞRENCİ LİSTESİ GÖRÜNÜMÜ
@@ -541,19 +605,22 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                <Text style={{ color: theme.textSecondary }}>Henüz kayıtlı yarışma yok.</Text>
              </View>
           ) : (
-            competitionHistory.map((item) => (
-              <TouchableOpacity 
-                key={item.id} 
-                style={[styles.historyCard, { backgroundColor: theme.surface }]}
-                onPress={() => setSelectedHistoryItem(item)}
-              >
-                <View>
-                  <Text style={[styles.historyDate, { color: theme.text }]}>{item.date}</Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{item.rounds} Tur x {item.arrowsPerRound} Ok | Toplam Süre: {item.totalDuration}</Text>
-                </View>
-                <Text style={{ color: theme.primary, fontWeight: 'bold' }}>Detay →</Text>
-              </TouchableOpacity>
-            ))
+            competitionHistory.map((item: any) => {
+              const itemId = item._id || item.id;
+              return (
+                <TouchableOpacity 
+                  key={itemId} 
+                  style={[styles.historyCard, { backgroundColor: theme.surface }]}
+                  onPress={() => setSelectedHistoryItem(item)}
+                >
+                  <View>
+                    <Text style={[styles.historyDate, { color: theme.text }]}>{item.date}</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{item.rounds} Tur x {item.arrowsPerRound} Ok | Toplam Süre: {item.totalDuration}</Text>
+                  </View>
+                  <Text style={{ color: theme.primary, fontWeight: 'bold' }}>Detay →</Text>
+                </TouchableOpacity>
+              );
+            })
           )}
         </ScrollView>
 
