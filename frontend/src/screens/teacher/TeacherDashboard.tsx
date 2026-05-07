@@ -314,7 +314,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                   <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 12 }}>İNCELE</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            ))
           )}
           
           {hasMoreStudents && students.length > 0 && (
