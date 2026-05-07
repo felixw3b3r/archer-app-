@@ -75,15 +75,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
       return;
     }
 
-    if (role === 'teacher') {
-      if (!password || password.length < 4) {
-        Alert.alert("Hata", "Öğretmen şifresi en az 4 haneli olmalıdır.");
-        return;
-      }
-      if (authMode === 'register' && !teacherKey) {
-        Alert.alert("Hata", "Öğretmen kaydı için anahtar gereklidir.");
-        return;
-      }
+    if (!password || password.length < 4) {
+      Alert.alert("Hata", "Şifre en az 4 haneli olmalıdır.");
+      return;
+    }
+
+    if (role === 'teacher' && authMode === 'register' && !teacherKey) {
+      Alert.alert("Hata", "Öğretmen kaydı için anahtar gereklidir.");
+      return;
     }
 
     try {
@@ -95,7 +94,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
           surname: surname.trim(),
           dob,
           role,
-          password: role === 'teacher' ? password : undefined,
+          password: password,
           teacherKey: role === 'teacher' ? teacherKey : undefined
         });
       } else {
@@ -103,7 +102,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
           name: name.trim(),
           surname: surname.trim(),
           role,
-          password: role === 'teacher' ? password : undefined
+          password: password
         });
       }
       
@@ -181,19 +180,17 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
             </View>
           )}
 
-          {role === 'teacher' && (
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.textSecondary }]}>ŞİFRE</Text>
-              <TextInput 
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
-                placeholder="****"
-                placeholderTextColor={theme.textSecondary + '80'}
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
-          )}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.textSecondary }]}>ŞİFRE</Text>
+            <TextInput 
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+              placeholder="****"
+              placeholderTextColor={theme.textSecondary + '80'}
+              secureTextEntry
+              value={password}
+              onChangeText={setPassword}
+            />
+          </View>
 
           {role === 'teacher' && authMode === 'register' && (
             <View style={styles.inputGroup}>

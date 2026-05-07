@@ -217,12 +217,20 @@ export default function App() {
         ]}
       >
         <View style={styles.menuHeader}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <Text style={[styles.menuTitle, { color: theme.primary }]}>Menü</Text>
             <TouchableOpacity onPress={toggleTheme} style={styles.themeToggle}>
               <Text style={{ fontSize: 28 }}>{themeMode === 'dark' ? '🌙' : '☀️'}</Text>
             </TouchableOpacity>
           </View>
+
+          {/* KULLANICI BİLGİSİ */}
+          {user && (
+            <View style={{ marginBottom: 20, paddingHorizontal: 5 }}>
+              <Text style={{ color: theme.textSecondary, fontSize: 14, marginBottom: 2 }}>Hoş geldin,</Text>
+              <Text style={{ color: theme.text, fontSize: 18, fontWeight: 'bold' }}>{user.name} {user.surname}</Text>
+            </View>
+          )}
 
           {/* ROL DEĞİŞTİRME İKONLARI */}
           <View style={styles.menuRoleSwitchContainer}>

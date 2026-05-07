@@ -59,11 +59,13 @@ app.post('/api/auth/register', async (req, res) => {
   console.log(`${PURPLE}[AUTH]${RESET} Yeni kayit denemesi: ${name} ${surname} (${role})`);
 
   try {
-    // 1. Öğretmen Kontrolleri
+    // 1. Şifre Kontrolü (Tüm kullanıcılar için zorunlu)
+    if (!password || password.length < 4) {
+      return res.status(400).json({ message: 'En az 4 haneli bir şifre zorunludur.' });
+    }
+
+    // 2. Öğretmen Kontrolleri
     if (role === 'teacher') {
-      if (!password || password.length < 4) {
-        return res.status(400).json({ message: 'Öğretmenler için en az 4 haneli bir şifre zorunludur.' });
-      }
       if (!teacherKey) {
         return res.status(400).json({ message: 'Öğretmen kaydı için geçerli bir anahtar gereklidir.' });
       }
@@ -130,11 +132,17 @@ app.post('/api/auth/login', async (req, res) => {
     }
     // NOT: Eğer kullanıcı öğretmen ise ve öğrenci panelini istiyorsa: İZİN VER (Öğretmenler de ok atabilir)
 
-    // Şifre kontrolü (Sadece öğretmen hesabı olanlar için şifre zorunlu olsun, hangi role girerse girsin)
-    if (user.role === 'teacher') {
-      if (!password || user.password !== password) {
-        return res.status(401).json({ message: 'Öğretmen hesabınız için hatalı şifre!' });
+    // Şifre kontrolü (Eski ve yeni kullanıcılar için uyumlu hale getirildi)
+    if (user.password) {
+      // Eğer şifre zaten varsa doğrula
+      if (user.password !== password) {
+        return res.status(401).json({ message: 'Hatalı şifre! Lütfen kontrol edin.' });
       }
+    } else {
+      // Eğer veritabanında şifre yoksa (eski kayıt), girdiği ilk şifreyi onun şifresi olarak kaydet
+      user.password = password;
+      await user.save();
+      console.log(`${CYAN}[UPDATE]${RESET} Eski kullanici için ilk sifre belirlendi: ${user.name} ${user.surname}`);
     }
 
     console.log(`${CYAN}[SUCCESS]${RESET} Giris basarili: ${user._id}`);
@@ -153,13 +161,29 @@ app.get('/health', (req, res) => {
 // STUDENT (ÖĞRENCİ) ROUTES
 // ==========================================
 
-// Öğrenci antrenman geçmişini getir
+// Öğrenci antrenman geçmişini getir (SAYFALAMA DESTEKLİ)
 app.get('/api/student/sessions/:userId', async (req, res) => {
-  console.log(`${CYAN}[FETCH]${RESET} Ogrenci gecmisi isteniyor: ${req.params.userId}`);
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  console.log(`${CYAN}[FETCH]${RESET} Ogrenci gecmisi isteniyor: ${req.params.userId} (Sayfa: ${page})`);
   try {
     const StudentModel = await getStudentModel(req.params.userId, 'Antrenman_Gecmisi');
-    const sessions = await StudentModel.find({ userId: req.params.userId }).sort({ createdAt: -1 });
-    res.json(sessions);
+    const sessions = await StudentModel.find({ userId: req.params.userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    // Toplam kayıt sayısını da gönderelim ki frontend ne kadar veri kaldığını bilsin
+    const total = await StudentModel.countDocuments({ userId: req.params.userId });
+    
+    res.json({
+      sessions,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalRecords: total
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -209,12 +233,27 @@ app.post('/api/teacher/students', async (req, res) => {
 // TEACHER (ÖĞRETMEN) ÖĞRENCİ YÖNETİMİ
 // ==========================================
 
-// Tüm kayıtlı öğrencileri getir
+// Tüm kayıtlı öğrencileri getir (SAYFALAMA DESTEKLİ)
 app.get('/api/teacher/all-students', async (req, res) => {
-  console.log(`${CYAN}[FETCH]${RESET} Tüm öğrenciler listeleniyor...`);
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  console.log(`${CYAN}[FETCH]${RESET} Tüm öğrenciler listeleniyor... (Sayfa: ${page})`);
   try {
-    const students = await User.find({ role: 'student' }).sort({ name: 1 });
-    res.json(students);
+    const students = await User.find({ role: 'student' })
+      .sort({ name: 1 })
+      .skip(skip)
+      .limit(limit);
+    
+    const total = await User.countDocuments({ role: 'student' });
+
+    res.json({
+      students,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalRecords: total
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -342,4 +342,12 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 5,
   },
+  loadMoreButton: {
+    paddingVertical: 15,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.2)',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
 });

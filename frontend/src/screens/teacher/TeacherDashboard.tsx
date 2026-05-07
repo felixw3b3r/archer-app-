@@ -38,6 +38,9 @@ interface TeacherDashboardProps {
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMode, theme, onLogout }) => {
   const [view, setView] = useState<'overview' | 'list' | 'competition_setup' | 'competition_active' | 'competition_history' | 'student_detail'>('overview');
   const [students, setStudents] = useState<Student[]>([]);
+  const [studentPage, setStudentPage] = useState(1);
+  const [hasMoreStudents, setHasMoreStudents] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentHistory, setStudentHistory] = useState<any[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -76,42 +79,60 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
         // 1. Yarışma Geçmişini Çek
         try {
+          const { getTeacherCompetitions } = require('../../services/api');
           const dbHistory = await getTeacherCompetitions(teacherId);
           if (dbHistory && dbHistory.length > 0) {
             setCompetitionHistory(dbHistory);
             await AsyncStorage.setItem('@competition_history', JSON.stringify(dbHistory));
-          } else {
-            const historyData = await AsyncStorage.getItem('@competition_history');
-            if (historyData) setCompetitionHistory(JSON.parse(historyData));
           }
         } catch (apiErr) {
-          console.log("Yarışma geçmişi sunucudan alınamadı, lokale bakılıyor.");
-          const historyData = await AsyncStorage.getItem('@competition_history');
-          if (historyData) setCompetitionHistory(JSON.parse(historyData));
+          console.log("Yarışma geçmişi hatası");
         }
         
-        // 2. TÜM ÖĞRENCİLERİ ÇEK
-        try {
-          const { getAllStudents } = require('../../services/api');
-          const dbStudents = await getAllStudents();
-          if (dbStudents && dbStudents.length > 0) {
-            const mapped = dbStudents.map((s: any) => ({
-              id: s._id,
-              name: s.name,
-              surname: s.surname,
-              dob: s.dob
-            }));
-            setStudents(mapped);
-          }
-        } catch (apiError) {
-          console.log("Öğrenci listesi alınamadı");
-        }
+        // 2. İLK SAYFA ÖĞRENCİLERİ ÇEK
+        await fetchStudents(1, true);
       } catch (e) {
         console.error("Veriler yüklenemedi", e);
       }
     };
     loadInitialData();
   }, []);
+
+  const fetchStudents = async (page: number, isInitial = false) => {
+    try {
+      if (!isInitial) setIsLoadingMore(true);
+      const { getAllStudents } = require('../../services/api');
+      const data = await getAllStudents(page, 10);
+      
+      if (data && data.students) {
+        const mapped = data.students.map((s: any) => ({
+          id: s._id,
+          name: s.name,
+          surname: s.surname,
+          dob: s.dob
+        }));
+        
+        if (isInitial) {
+          setStudents(mapped);
+        } else {
+          setStudents(prev => [...prev, ...mapped]);
+        }
+        
+        setHasMoreStudents(data.currentPage < data.totalPages);
+        setStudentPage(data.currentPage);
+      }
+    } catch (apiError) {
+      console.log("Öğrenci listesi alınamadı");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const loadMoreStudents = () => {
+    if (!isLoadingMore && hasMoreStudents) {
+      fetchStudents(studentPage + 1);
+    }
+  };
 
   const saveCompetitionToHistory = async () => {
     try {
@@ -200,8 +221,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
     setIsLoadingHistory(true);
     try {
       const { getStudentSessions } = require('../../services/api');
-      const history = await getStudentSessions(student.id);
-      setStudentHistory(history || []);
+      const data = await getStudentSessions(student.id, 1, 50); // İnceleme ekranında ilk 50 kaydı çekelim
+      setStudentHistory(data.sessions || []);
     } catch (err) {
       console.error("Öğrenci geçmişi alınamadı", err);
       Alert.alert("Hata", "Öğrenci geçmişi yüklenemedi.");
@@ -293,7 +314,19 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                   <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 12 }}>İNCELE</Text>
                 </TouchableOpacity>
               </View>
-            ))
+            </View>
+          )}
+          
+          {hasMoreStudents && students.length > 0 && (
+            <TouchableOpacity 
+              style={[styles.loadMoreButton, { marginTop: 20, marginBottom: 40 }]} 
+              onPress={loadMoreStudents}
+              disabled={isLoadingMore}
+            >
+              <Text style={{ color: theme.primary, textAlign: 'center', fontWeight: 'bold' }}>
+                {isLoadingMore ? 'Yükleniyor...' : 'DAHA FAZLA YÜKLE'}
+              </Text>
+            </TouchableOpacity>
           )}
         </ScrollView>
 

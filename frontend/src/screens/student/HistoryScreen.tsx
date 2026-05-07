@@ -12,41 +12,52 @@ export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: (
   
   const [history, setHistory] = useState<TrainingHistory[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const loadHistory = async () => {
+  const fetchSessions = async (page: number, isInitial = false) => {
     try {
+      if (!isInitial) setIsLoadingMore(true);
+
       const userDataStr = await AsyncStorage.getItem('@user_data');
       if (!userDataStr) return;
       const userData = JSON.parse(userDataStr);
       
-      // Önce bilgisayarındaki backend'den güncel veriyi çekmeyi dener
-      const serverData = await getStudentSessions(userData._id);
-      if (serverData && serverData.length > 0) {
-        setHistory(serverData);
-        // İstersen burada çevrimdışı kullanım için AsyncStorage'a da yedekleyebilirsin
-        await AsyncStorage.setItem('@training_history', JSON.stringify(serverData));
-        return;
+      const data = await getStudentSessions(userData._id, page, 10);
+      
+      if (data && data.sessions) {
+        if (isInitial) {
+          setHistory(data.sessions);
+          await AsyncStorage.setItem('@training_history', JSON.stringify(data.sessions));
+        } else {
+          setHistory(prev => [...prev, ...data.sessions]);
+        }
+        
+        setHasMore(data.currentPage < data.totalPages);
+        setCurrentPage(data.currentPage);
       }
     } catch (e) {
-      console.log("Sunucuya ulaşılamadı, yerel hafızadan yükleniyor...");
-    }
-    
-    // Sunucuya bağlanamazsa veya hata verirse AsyncStorage'dan okur
-    try {
-      const data = await AsyncStorage.getItem('@training_history');
-      if (data) {
-        setHistory(JSON.parse(data));
+      console.log("Sunucu hatası, yerel veriler kullanılıyor.");
+      if (isInitial) {
+        const localData = await AsyncStorage.getItem('@training_history');
+        if (localData) setHistory(JSON.parse(localData));
       }
-    } catch (e) {
-      console.error("Geçmiş yüklenemedi", e);
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
   // Ekran her açıldığında verileri güncelle
-  // NavigationContainer olmadığı için useEffect kullanıyoruz
   useEffect(() => {
-    loadHistory();
+    fetchSessions(1, true);
   }, []);
+
+  const loadMore = () => {
+    if (!isLoadingMore && hasMore) {
+      fetchSessions(currentPage + 1);
+    }
+  };
 
   const toggleExpand = (id: string) => {
     if (expandedId === id) {
@@ -144,6 +155,23 @@ export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: (
           keyExtractor={(item: any) => item._id || item.id}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
+          ListFooterComponent={() => (
+            hasMore ? (
+              <TouchableOpacity 
+                style={{ padding: 20, marginBottom: 20 }} 
+                onPress={loadMore}
+                disabled={isLoadingMore}
+              >
+                <Text style={{ color: theme.primary, textAlign: 'center', fontWeight: 'bold' }}>
+                  {isLoadingMore ? 'Yükleniyor...' : 'DAHA FAZLA YÜKLE'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ padding: 20, marginBottom: 20 }}>
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', fontSize: 12 }}>Tüm kayıtlar yüklendi.</Text>
+              </View>
+            )
+          )}
         />
       )}
     </View>

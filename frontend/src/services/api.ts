@@ -34,8 +34,8 @@ export const loginUser = async (userData: any) => {
 // STUDENT (ÖĞRENCİ) API
 // ==========================================
 
-export const getStudentSessions = async (userId: string) => {
-  const response = await fetch(`${API_URL}/student/sessions/${userId}`);
+export const getStudentSessions = async (userId: string, page = 1, limit = 10) => {
+  const response = await fetch(`${API_URL}/student/sessions/${userId}?page=${page}&limit=${limit}`);
   if (!response.ok) {
     throw new Error('Ağ hatasi oluştu');
   }
@@ -82,8 +82,8 @@ export const addTeacherStudent = async (studentData: any) => {
   return await response.json();
 };
 
-export const getAllStudents = async () => {
-  const response = await fetch(`${API_URL}/teacher/all-students`);
+export const getAllStudents = async (page = 1, limit = 10) => {
+  const response = await fetch(`${API_URL}/teacher/all-students?page=${page}&limit=${limit}`);
   if (!response.ok) throw new Error('Öğrenciler getirilemedi');
   return response.json();
 };
