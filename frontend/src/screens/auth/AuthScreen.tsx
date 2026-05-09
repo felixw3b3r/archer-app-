@@ -9,7 +9,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Alert
+  Alert,
+  StatusBar
 } from 'react-native';
 import { colors } from '../../theme/colors';
 import { registerUser, loginUser } from '../../services/api';
@@ -237,7 +238,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 30,
-    paddingTop: 80,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 40 : 80,
   },
   header: {
     marginBottom: 40,

@@ -259,6 +259,17 @@ app.get('/api/teacher/all-students', async (req, res) => {
   }
 });
 
+// Öğretmenin kaydettiği tüm yarışmaları getir
+app.get('/api/teacher/competitions/:teacherId', async (req, res) => {
+  console.log(`${CYAN}[FETCH]${RESET} Yarışma geçmişi isteniyor: ${req.params.teacherId}`);
+  try {
+    const competitions = await TeacherData.find({ teacherId: req.params.teacherId }).sort({ createdAt: -1 });
+    res.json(competitions);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // Öğretmen tarafından yeni öğrenci kaydet
 app.post('/api/teacher/add-student', async (req, res) => {
   const { name, surname, dob } = req.body;

@@ -102,11 +102,15 @@ export const addStudentByTeacher = async (studentData: { name: string; surname: 
 };
 
 export const getTeacherCompetitions = async (teacherId: string) => {
-  const response = await fetch(`${API_URL}/teacher/competitions/${teacherId}`);
-  if (!response.ok) {
-    throw new Error('Ağ hatasi oluştu');
+  try {
+    const response = await fetch(`${API_URL}/teacher/competitions/${teacherId}`);
+    if (!response.ok) {
+      throw new Error(`Sunucu hatası: ${response.status}`);
+    }
+    return await response.json();
+  } catch (error: any) {
+    throw new Error(error.message || 'Ağ hatası oluştu');
   }
-  return await response.json();
 };
 
 export const saveTeacherCompetition = async (competitionData: any) => {

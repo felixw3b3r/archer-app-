@@ -67,6 +67,32 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   const [compStartTime, setCompStartTime] = useState<number | null>(null);
   const [studentDurations, setStudentDurations] = useState<{[key: string]: number}>({});
   const [activeSessionStartTime, setActiveSessionStartTime] = useState<number | null>(null);
+  const [isLoadingCompHistory, setIsLoadingCompHistory] = useState(false);
+
+  const loadCompetitions = async () => {
+    try {
+      setIsLoadingCompHistory(true);
+      const userDataStr = await AsyncStorage.getItem('@user_data');
+      if (!userDataStr) return;
+      const userData = JSON.parse(userDataStr);
+      const teacherId = userData._id;
+
+      if (!teacherId) {
+        console.error("Teacher ID bulunamadı");
+        return;
+      }
+
+      const dbHistory = await getTeacherCompetitions(teacherId);
+      if (dbHistory) {
+        setCompetitionHistory(dbHistory);
+        await AsyncStorage.setItem('@competition_history', JSON.stringify(dbHistory));
+      }
+    } catch (e) {
+      console.error("Yarışma geçmişi yüklenemedi", e);
+    } finally {
+      setIsLoadingCompHistory(false);
+    }
+  };
 
   // Geçmişi ve Öğrencileri Yükle
   useEffect(() => {
@@ -97,6 +123,13 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
     };
     loadInitialData();
   }, []);
+
+  // Görünüm değiştiğinde yarışma geçmişini tazele
+  useEffect(() => {
+    if (view === 'competition_history') {
+      loadCompetitions();
+    }
+  }, [view]);
 
   const fetchStudents = async (page: number, isInitial = false) => {
     try {
@@ -819,7 +852,11 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
         </View>
 
         <ScrollView contentContainerStyle={styles.listContainer}>
-          {competitionHistory.length === 0 ? (
+          {isLoadingCompHistory ? (
+            <View style={styles.emptyContainer}>
+              <Text style={{ color: theme.textSecondary }}>Yükleniyor...</Text>
+            </View>
+          ) : competitionHistory.length === 0 ? (
              <View style={styles.emptyContainer}>
                <Text style={{ color: theme.textSecondary }}>Henüz kayıtlı yarışma yok.</Text>
              </View>

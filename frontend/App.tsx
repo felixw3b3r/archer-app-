@@ -11,8 +11,10 @@ import {
   StatusBar, 
   Image,
   ImageBackground,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StudentDashboard from './src/screens/student/StudentDashboard';
 import TeacherDashboard from './src/screens/teacher/TeacherDashboard';
@@ -164,26 +166,32 @@ export default function App() {
   // Eğer kullanıcı girişi yapılmamışsa AuthScreen'i göster
   if (user === null) {
     return (
-      <AuthScreen 
-        themeMode={themeMode} 
-        onLogin={async (selectedRole, userData) => {
-          setRole(selectedRole);
-          setUser(userData);
-          try {
-            await AsyncStorage.setItem('@user_role', selectedRole);
-            await AsyncStorage.setItem('@user_data', JSON.stringify(userData));
-          } catch (e) {
-            console.error("Giriş bilgileri kaydedilemedi", e);
-          }
-        }} 
-      />
+      <SafeAreaProvider>
+        <View style={{ flex: 1, backgroundColor: theme.background }}>
+          <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+          <AuthScreen 
+            themeMode={themeMode} 
+            onLogin={async (selectedRole, userData) => {
+              setRole(selectedRole);
+              setUser(userData);
+              try {
+                await AsyncStorage.setItem('@user_role', selectedRole);
+                await AsyncStorage.setItem('@user_data', JSON.stringify(userData));
+              } catch (e) {
+                console.error("Giriş bilgileri kaydedilemedi", e);
+              }
+            }} 
+          />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
   // ANA UYGULAMA İÇERİĞİ (Giriş Yapıldıktan Sonra)
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor={theme.surface} />
+    <SafeAreaProvider>
+      <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
       
       {/* ROL TABANLI EKRAN RENDERI */}
       {role === 'student' ? (
@@ -275,7 +283,8 @@ export default function App() {
           <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Archer App v1.2</Text>
         </View>
       </Animated.View>
-    </SafeAreaView>
+      </View>
+    </SafeAreaProvider>
   );
 }
 

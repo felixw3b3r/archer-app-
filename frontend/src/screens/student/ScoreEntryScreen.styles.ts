@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Platform, StatusBar } from 'react-native';
 
 export const getStyles = (theme: any) => StyleSheet.create({
   container: {
@@ -11,7 +11,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 20 : 60,
     backgroundColor: theme.surface,
     borderBottomWidth: 1,
     borderBottomColor: theme.border,
@@ -19,7 +19,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
   },
   resetTopButton: {
     position: 'absolute',
-    top: 48,
+    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 48,
     left: 15,
     zIndex: 10,
     width: 45,
@@ -41,7 +41,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
   },
   menuButton: {
     position: 'absolute',
-    top: 48,
+    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 48,
     right: 15,
     zIndex: 10,
     width: 45,
@@ -208,7 +208,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
 
   // ─── History Screen Styles ─────────────────────────────────
   historyHeader: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 20 : 60,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'center',
@@ -225,7 +225,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
   historyMenuButton: {
     position: 'absolute',
     right: 20,
-    top: 55,
+    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 15 : 55,
     padding: 5,
   },
   historyMenuButtonText: {

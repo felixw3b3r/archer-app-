@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions, Platform, StatusBar } from 'react-native';
 
 const { height, width } = Dimensions.get('window');
 
@@ -8,7 +8,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 40,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(128,128,128,0.1)',
