@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle } from 'react-native-svg';
-import { styles } from './TeacherDashboard.styles';
+import { getStyles } from './TeacherDashboard.styles';
 import CompetitionScoring from './CompetitionScoring';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { 
   getTeacherStudents, 
   addTeacherStudent, 
@@ -36,6 +37,9 @@ interface TeacherDashboardProps {
 }
 
 const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMode, theme, onLogout }) => {
+  const insets = useSafeAreaInsets();
+  const styles = getStyles(insets);
+
   const [view, setView] = useState<'overview' | 'list' | 'competition_setup' | 'competition_active' | 'competition_history' | 'student_detail'>('overview');
   const [students, setStudents] = useState<Student[]>([]);
   const [studentPage, setStudentPage] = useState(1);

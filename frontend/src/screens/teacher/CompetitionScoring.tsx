@@ -12,6 +12,7 @@ import {
 import { colors } from '../../theme/colors';
 import { useScoreEntry } from '../../hooks/useScoreEntry';
 import { getStyles } from '../student/ScoreEntryScreen.styles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CompetitionScoringProps {
   studentName: string;
@@ -33,7 +34,8 @@ export default function CompetitionScoring({
   themeMode 
 }: CompetitionScoringProps) {
   
-  const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = getStyles(theme, insets);
 
   const {
     totalSeries,

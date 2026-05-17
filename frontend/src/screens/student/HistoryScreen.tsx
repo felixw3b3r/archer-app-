@@ -5,10 +5,12 @@ import { colors } from '../../theme/colors';
 import { TrainingHistory } from '../../hooks/useScoreEntry';
 import { getStyles } from './ScoreEntryScreen.styles';
 import { getStudentSessions } from '../../services/api';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: () => void, themeMode: 'dark' | 'light' }) {
   const theme = themeMode === 'dark' ? colors.dark : colors.light;
-  const styles = getStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = getStyles(theme, insets);
   
   const [history, setHistory] = useState<TrainingHistory[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);

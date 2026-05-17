@@ -2,17 +2,20 @@ import { StyleSheet, Dimensions, Platform, StatusBar } from 'react-native';
 
 const { height, width } = Dimensions.get('window');
 
-export const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 40,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,128,128,0.1)',
-  },
+export const getStyles = (insets?: { top: number, bottom: number }) => {
+  const topInset = insets?.top ?? (Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 20);
+
+  return StyleSheet.create({
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 20,
+      paddingTop: topInset + 10,
+      paddingBottom: 15,
+      borderBottomWidth: 1,
+      borderBottomColor: 'rgba(128,128,128,0.1)',
+    },
   headerTitle: {
     fontSize: 22,
     fontWeight: 'bold',
@@ -351,3 +354,7 @@ export const styles = StyleSheet.create({
     marginVertical: 10,
   },
 });
+};
+
+// Fallback static styles for backward compatibility
+export const styles = getStyles();

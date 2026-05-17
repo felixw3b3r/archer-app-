@@ -1,59 +1,62 @@
 import { StyleSheet, Platform, StatusBar } from 'react-native';
 
-export const getStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  innerContainer: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  header: {
-    padding: 20,
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 20 : 60,
-    backgroundColor: theme.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
-    position: 'relative',
-  },
-  resetTopButton: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 48,
-    left: 15,
-    zIndex: 10,
-    width: 45,
-    height: 45,
-    borderRadius: 22.5, // Tam daire için genişliğin yarısı
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: theme.danger,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  resetTopButtonText: {
-    color: theme.danger,
-    fontSize: 28,
-    fontWeight: '900',
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    includeFontPadding: false,
-  },
-  menuButton: {
-    position: 'absolute',
-    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 10 : 48,
-    right: 15,
-    zIndex: 10,
-    width: 45,
-    height: 45,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  menuButtonText: {
-    color: theme.text,
-    fontSize: 32,
-    fontWeight: 'bold',
-  },
+export const getStyles = (theme: any, insets?: { top: number, bottom: number }) => {
+  const topInset = insets?.top ?? (Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 20);
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    innerContainer: {
+      flex: 1,
+      justifyContent: 'space-between',
+    },
+    header: {
+      padding: 20,
+      paddingTop: topInset + 10,
+      backgroundColor: theme.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      position: 'relative',
+    },
+    resetTopButton: {
+      position: 'absolute',
+      top: topInset - 2,
+      left: 15,
+      zIndex: 10,
+      width: 45,
+      height: 45,
+      borderRadius: 22.5, // Tam daire için genişliğin yarısı
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderColor: theme.danger,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    resetTopButtonText: {
+      color: theme.danger,
+      fontSize: 28,
+      fontWeight: '900',
+      textAlign: 'center',
+      textAlignVertical: 'center',
+      includeFontPadding: false,
+    },
+    menuButton: {
+      position: 'absolute',
+      top: topInset - 2,
+      right: 15,
+      zIndex: 10,
+      width: 45,
+      height: 45,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    menuButtonText: {
+      color: theme.text,
+      fontSize: 32,
+      fontWeight: 'bold',
+    },
   title: {
     fontSize: 32, // Daha büyük punto
     fontWeight: '800', // Daha kalın (Ekstra Bold)
@@ -208,7 +211,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
 
   // ─── History Screen Styles ─────────────────────────────────
   historyHeader: {
-    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 20 : 60,
+    paddingTop: topInset + 10,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'center',
@@ -225,7 +228,7 @@ export const getStyles = (theme: any) => StyleSheet.create({
   historyMenuButton: {
     position: 'absolute',
     right: 20,
-    top: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 15 : 55,
+    top: topInset + 3,
     padding: 5,
   },
   historyMenuButtonText: {
@@ -317,3 +320,4 @@ export const getStyles = (theme: any) => StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+};

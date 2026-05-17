@@ -13,12 +13,14 @@ import {
 import { colors } from '../../theme/colors';
 import { useScoreEntry } from '../../hooks/useScoreEntry';
 import { getStyles } from './ScoreEntryScreen.styles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu: () => void, themeMode: 'dark' | 'light' }) {
   const theme = themeMode === 'dark' ? colors.dark : colors.light;
+  const insets = useSafeAreaInsets();
   
   // Stilleri dış dosyadan alıyoruz
-  const styles = getStyles(theme);
+  const styles = getStyles(theme, insets);
 
   // Bütün matematik ve mantık (Logic/State) işlemlerini Hook'tan çekiyoruz
   const {
