@@ -58,6 +58,11 @@ Expo QR kodunu telefonunuzdaki Expo Go uygulamasıyla taratın.
   - `studentprofiles`: Öğretmenlerin sisteme eklediği öğrenciler.
   - `teacherdatas`: Yarışma sonuçları ve detaylı puan tabloları.
 
+### Hesap ve kayıt notları
+- Oturumlar artık süreli token ile korunur; uygulama token'ı cihazda saklar ve API isteklerine otomatik ekler.
+- Öğretmenin eklediği öğrenci için oluşturulan ilk giriş kodu tek kullanımlıktır. Öğrenci bu kodu ve kendi belirlediği şifreyi ilk girişte kullanır.
+- Antrenman ve yarışma kayıtları istemci kimliğiyle tekrar gönderilebilir; bağlantı kesilirse bekleyen kayıtlar cihazda korunur.
+
 ## 🐳 Docker Kullanımı (Opsiyonel)
 Proje Docker'a hazırdır. Linux sunucularda çalıştırmak için:
 ```bash

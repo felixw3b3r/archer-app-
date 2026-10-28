@@ -53,23 +53,14 @@ export default function CompetitionScoring({
     handleSaveScore,
     handleEditPrevious,
     handleReset
-  } = useScoreEntry(rounds, arrowsPerRound);
+  } = useScoreEntry(rounds, arrowsPerRound, false);
 
   const onStatusChangeRef = React.useRef(onStatusChange);
   onStatusChangeRef.current = onStatusChange;
 
-  // KAYDET'e basıldığında puanı hemen hesaplayıp parent'a gönder
-  const handleSaveAndNotify = () => {
-    const currentScore = parseInt(scoreInput || '0', 10);
-    const oldScore = seriesScores[currentSeries - 1] || 0;
-    const newTotal = totalScore - oldScore + currentScore;
-    const willFinish = currentSeries >= totalSeries;
-    const updatedSeriesScores = [...seriesScores];
-    updatedSeriesScores[currentSeries - 1] = currentScore;
-    
-    handleSaveScore();
-    onStatusChangeRef.current?.(willFinish, newTotal, currentSeries, updatedSeriesScores);
-  };
+  React.useEffect(() => {
+    onStatusChangeRef.current?.(isFinished, totalScore, seriesScores.length, seriesScores);
+  }, [isFinished, totalScore, seriesScores]);
 
   if (isFinished) {
     return (
@@ -146,7 +137,7 @@ export default function CompetitionScoring({
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveAndNotify}>
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveScore}>
               <Text style={styles.saveButtonText}>KAYDET</Text>
             </TouchableOpacity>
 

@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { saveStudentSession } from '../services/api';
+import { newRecordId, queueRecord, syncRecords } from '../services/recordStore';
 
 export interface TrainingHistory {
   id: string;
+  _id?: string;
+  clientId?: string;
+  type?: string;
+  pending?: boolean;
   date: string;
   totalSeries: number;
   arrowsPerSeries: number;
@@ -11,164 +16,95 @@ export interface TrainingHistory {
   seriesScores: number[];
 }
 
-export const useScoreEntry = (initialSeries = 7, initialArrows = 5) => {
-  // Antrenman Ayarları
-  const [totalSeries, setTotalSeries] = useState(initialSeries);
-  const [arrowsPerSeries, setArrowsPerSeries] = useState(initialArrows);
-  
-  // Skor Durumu
+export const useScoreEntry = (initialSeries = 7, initialArrows = 5, persistTraining = true) => {
+  const [totalSeries, updateTotalSeries] = useState(initialSeries);
+  const [arrowsPerSeries, updateArrowsPerSeries] = useState(initialArrows);
   const [currentSeries, setCurrentSeries] = useState(1);
-  const [scoreInput, setScoreInput] = useState<string>('');
+  const [scoreInput, setScoreInput] = useState('');
   const [seriesScores, setSeriesScores] = useState<number[]>([]);
-  
-  const totalScore = seriesScores.reduce((acc, curr) => acc + curr, 0);
   const [isFinished, setIsFinished] = useState(false);
-  
-  // Skor Artırma / Azaltma
-  const handleIncrement = () => {
-    const currentScore = parseInt(scoreInput || '0', 10);
-    const maxScore = arrowsPerSeries * 3;
-    if (currentScore < maxScore) {
-      setScoreInput((currentScore + 1).toString());
+  const [isSaving, setIsSaving] = useState(false);
+  const saving = useRef(false);
+  const recordId = useRef(newRecordId());
+  const recordDate = useRef<Date | null>(null);
+  const totalScore = seriesScores.reduce((sum, score) => sum + score, 0);
+
+  // Settings remain editable until the first series has been saved.
+  const setTotalSeries = (value: number) => {
+    if (!seriesScores.length && !saving.current) updateTotalSeries(Math.min(1000, Math.max(1, value)));
+  };
+  const setArrowsPerSeries = (value: number) => {
+    if (!seriesScores.length && !saving.current) {
+      const arrows = Math.min(1000, Math.max(1, value));
+      updateArrowsPerSeries(arrows);
+      if (Number(scoreInput) > arrows * 3) setScoreInput(String(arrows * 3));
     }
   };
-
-  const handleDecrement = () => {
-    const currentScore = parseInt(scoreInput || '0', 10);
-    if (currentScore > 0) {
-      setScoreInput((currentScore - 1).toString());
-    }
-  };
-
-  const handleZero = () => {
-    setScoreInput('0');
-  };
-
   const handleScoreChange = (text: string) => {
-    const numericValue = text.replace(/[^0-9]/g, '');
-    const maxScore = arrowsPerSeries * 3;
-    if (numericValue !== '') {
-      const num = parseInt(numericValue, 10);
-      if (num <= maxScore) {
-        setScoreInput(num.toString());
-      } else {
-        setScoreInput(maxScore.toString());
-      }
-    } else {
-      setScoreInput('');
-    }
+    const numeric = text.replace(/[^0-9]/g, '');
+    setScoreInput(numeric ? String(Math.min(Number(numeric), arrowsPerSeries * 3)) : '');
   };
+  const handleIncrement = () => handleScoreChange(String(Number(scoreInput) + 1));
+  const handleDecrement = () => handleScoreChange(String(Math.max(0, Number(scoreInput) - 1)));
+  const handleZero = () => setScoreInput('0');
 
-  const handleSaveScore = () => {
-    const currentScore = parseInt(scoreInput || '0', 10);
-    
-    setSeriesScores(prev => {
-      const newScores = [...prev];
-      newScores[currentSeries - 1] = currentScore;
-      return newScores;
-    });
-
+  const handleSaveScore = async () => {
+    if (saving.current || isFinished) return;
+    const scores = [...seriesScores];
+    scores[currentSeries - 1] = Math.min(Number(scoreInput || 0), arrowsPerSeries * 3);
     if (currentSeries < totalSeries) {
-      const nextSeries = currentSeries + 1;
-      setCurrentSeries(nextSeries);
-      if (nextSeries <= seriesScores.length) {
-        setScoreInput(seriesScores[nextSeries - 1]?.toString() || '');
-      } else {
-        setScoreInput('');
+      setSeriesScores(scores);
+      setCurrentSeries(currentSeries + 1);
+      setScoreInput(scores[currentSeries]?.toString() || '');
+      return;
+    }
+    saving.current = true;
+    setIsSaving(true);
+    try {
+      if (persistTraining) {
+        const user = JSON.parse(await AsyncStorage.getItem('@user_data') || 'null');
+        if (!user?._id) throw new Error('Kayıt için tekrar giriş yapın.');
+        const now = recordDate.current || new Date();
+        recordDate.current = now;
+        await queueRecord('training', user._id, {
+          id: recordId.current, clientId: recordId.current, userId: user._id,
+          date: now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + ' - ' + now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' }),
+          createdAt: now.toISOString(), type: 'training', totalSeries, arrowsPerSeries,
+          totalScore: scores.reduce((sum, score) => sum + score, 0), seriesScores: scores,
+        });
+        void syncRecords('training', user._id).catch(console.error);
       }
-    } else {
+      setSeriesScores(scores);
       setIsFinished(true);
-      
-      const saveToHistory = async () => {
-        try {
-          const finalScores = [...seriesScores];
-          finalScores[currentSeries - 1] = currentScore;
-          const finalTotal = finalScores.reduce((acc, curr) => acc + curr, 0);
-
-          const now = new Date();
-          const dateString = now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) + ' - ' + now.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
-
-          const newHistory: TrainingHistory = {
-            id: Date.now().toString(),
-            date: dateString,
-            totalSeries,
-            arrowsPerSeries,
-            totalScore: finalTotal,
-            seriesScores: finalScores,
-          };
-
-          // 1. MONGODB'YE KAYDET
-          try {
-            const userDataStr = await AsyncStorage.getItem('@user_data');
-            let userId = 'test_user_1';
-            if (userDataStr) {
-              const userData = JSON.parse(userDataStr);
-              userId = userData._id;
-            }
-            
-            await saveStudentSession({
-              userId: userId,
-              date: dateString,
-              totalScore: finalTotal,
-              totalSeries,
-              arrowsPerSeries,
-              seriesScores: finalScores,
-            });
-            console.log("✅ MongoDB'ye başarıyla kaydedildi!");
-          } catch (apiError) {
-            console.error("❌ MongoDB'ye kaydedilemedi", apiError);
-          }
-
-          // 2. YEREL HAFIZAYA KAYDET
-          const existingHistoryString = await AsyncStorage.getItem('@training_history');
-          const existingHistory: TrainingHistory[] = existingHistoryString ? JSON.parse(existingHistoryString) : [];
-          existingHistory.unshift(newHistory);
-          await AsyncStorage.setItem('@training_history', JSON.stringify(existingHistory));
-        } catch (e) {
-          console.error("Geçmiş kaydedilemedi", e);
-        }
-      };
-
-      saveToHistory();
+    } catch (error: any) {
+      Alert.alert('Kayıt tamamlanamadı', error.message || 'Puanlarınız ekranda korunuyor. Lütfen tekrar deneyin.');
+    } finally {
+      saving.current = false;
+      setIsSaving(false);
     }
   };
-
   const handleEditPrevious = () => {
+    if (saving.current) return;
     if (isFinished) {
-      setScoreInput(seriesScores[currentSeries - 1]?.toString() || '0');
+      setScoreInput(String(seriesScores[currentSeries - 1] || 0));
       setIsFinished(false);
     } else if (currentSeries > 1) {
-      const prevSeries = currentSeries - 1;
-      setCurrentSeries(prevSeries);
-      setScoreInput(seriesScores[prevSeries - 1]?.toString() || '0');
+      setCurrentSeries(currentSeries - 1);
+      setScoreInput(String(seriesScores[currentSeries - 2] || 0));
     }
   };
-
   const handleReset = () => {
-    setTotalSeries(initialSeries);
-    setArrowsPerSeries(initialArrows);
+    if (saving.current) return;
+    updateTotalSeries(initialSeries);
+    updateArrowsPerSeries(initialArrows);
     setCurrentSeries(1);
     setScoreInput('');
     setSeriesScores([]);
     setIsFinished(false);
+    recordId.current = newRecordId();
+    recordDate.current = null;
   };
-
-  return {
-    totalSeries,
-    setTotalSeries,
-    arrowsPerSeries,
-    setArrowsPerSeries,
-    currentSeries,
-    scoreInput,
-    seriesScores,
-    totalScore,
-    isFinished,
-    handleIncrement,
-    handleDecrement,
-    handleZero,
-    handleScoreChange,
-    handleSaveScore,
-    handleEditPrevious,
-    handleReset
-  };
+  return { totalSeries, setTotalSeries, arrowsPerSeries, setArrowsPerSeries, currentSeries, scoreInput,
+    seriesScores, totalScore, isFinished, isSaving, settingsLocked: seriesScores.length > 0 || isSaving,
+    handleIncrement, handleDecrement, handleZero, handleScoreChange, handleSaveScore, handleEditPrevious, handleReset };
 };

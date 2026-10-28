@@ -5,6 +5,7 @@ import { colors } from '../../theme/colors';
 import { TrainingHistory } from '../../hooks/useScoreEntry';
 import { getStyles } from './ScoreEntryScreen.styles';
 import { getStudentSessions } from '../../services/api';
+import { mergeRecords, readRecords, syncRecords } from '../../services/recordStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: () => void, themeMode: 'dark' | 'light' }) {
@@ -17,35 +18,37 @@ export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: (
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadingRef = React.useRef(false);
 
   const fetchSessions = async (page: number, isInitial = false) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    let userId: string | undefined;
     try {
-      if (!isInitial) setIsLoadingMore(true);
+      setIsLoadingMore(true);
 
       const userDataStr = await AsyncStorage.getItem('@user_data');
       if (!userDataStr) return;
       const userData = JSON.parse(userDataStr);
-      
+      userId = userData._id;
+      if (isInitial) {
+        setHistory(await readRecords('training', userData._id) as TrainingHistory[]);
+        await syncRecords('training', userData._id);
+      }
       const data = await getStudentSessions(userData._id, page, 10);
       
       if (data && data.sessions) {
-        if (isInitial) {
-          setHistory(data.sessions);
-          await AsyncStorage.setItem('@training_history', JSON.stringify(data.sessions));
-        } else {
-          setHistory(prev => [...prev, ...data.sessions]);
-        }
+        const records = await mergeRecords('training', userData._id, data.sessions);
+        setHistory(records as TrainingHistory[]);
         
         setHasMore(data.currentPage < data.totalPages);
         setCurrentPage(data.currentPage);
       }
     } catch (e) {
       console.log("Sunucu hatası, yerel veriler kullanılıyor.");
-      if (isInitial) {
-        const localData = await AsyncStorage.getItem('@training_history');
-        if (localData) setHistory(JSON.parse(localData));
-      }
+      if (userId) setHistory(await readRecords('training', userId) as TrainingHistory[]);
     } finally {
+      loadingRef.current = false;
       setIsLoadingMore(false);
     }
   };
@@ -87,6 +90,9 @@ export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: (
             <Text style={[styles.dateText, { color: theme.text }]}>{item.date}</Text>
             <Text style={[styles.subText, { color: theme.textSecondary }]}>
               {item.totalSeries} Seri x {item.arrowsPerSeries} Ok
+            </Text>
+            <Text style={[styles.subText, { color: theme.textSecondary }]}>
+              {item.type === 'competition' ? 'Yarışma' : 'Antrenman'}{item.pending ? ' · Gönderilmeyi bekliyor' : ''}
             </Text>
           </View>
           <View style={styles.scoreContainer}>
@@ -156,6 +162,8 @@ export default function HistoryScreen({ onOpenMenu, themeMode }: { onOpenMenu: (
           data={history}
           keyExtractor={(item: any) => item._id || item.id}
           renderItem={renderItem}
+          refreshing={isLoadingMore}
+          onRefresh={() => fetchSessions(1, true)}
           contentContainerStyle={styles.listContent}
           ListFooterComponent={() => (
             hasMore ? (

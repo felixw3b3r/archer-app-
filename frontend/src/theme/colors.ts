@@ -1,30 +1,16 @@
+// Obsidian Kinetic Glass tokens. Native surfaces use layered opacity and
+// shadows instead of web-only backdrop-filter so they remain Expo compatible.
 export const colors = {
   dark: {
-    background: '#040B14', // Çok derin gece mavisi (Neredeyse siyah)
-    surface: '#0A192F',    // Derin deniz mavisi
-    text: '#E0FBFF',       // Buz mavisi (Beyaz yerine)
-    textSecondary: '#7FA1C3', // Muted mavi-gri
-    primary: '#64FFDA',    // Turkuaz (Maviyle uyumlu vurgu)
-    secondary: '#112240',  
-    accent: '#00BFFF',     // Deep Sky Blue
-    border: '#1B3C53',
-    miss: '#233554',       
-    success: '#238636',
-    danger: '#F44336',
-    scoreBackground: '#112240',
+    background: '#090D10', surface: '#121A21', surfaceRaised: '#172129', surfaceMuted: '#0E151A',
+    text: '#F2F7F6', textSecondary: '#93A6A3', primary: '#00F5D4', primaryDim: '#05D5AA', accent: '#26FEDC',
+    border: '#2A3A3D', borderSoft: 'rgba(255,255,255,0.10)', glass: 'rgba(18, 26, 33, 0.88)',
+    miss: '#52635F', success: '#10B981', danger: '#FF7185', scoreBackground: '#0B1217',
   },
   light: {
-    background: '#F0F7FF', // Çok açık gökyüzü mavisi
-    surface: '#FFFFFF',
-    text: '#0D2B5B',       // Derin lacivert (Siyah yerine)
-    textSecondary: '#4A6FA5', // Orta ton çelik mavisi
-    primary: '#0969DA',    // Parlak mavi
-    secondary: '#E1E9F4',  
-    accent: '#005FB8',     
-    border: '#D0E1F9',
-    miss: '#A5B9D7',
-    success: '#1A7F37',
-    danger: '#D1242F',
-    scoreBackground: '#E1EBF8',
+    background: '#F3FAF8', surface: '#FFFFFF', surfaceRaised: '#E7F3F0', surfaceMuted: '#DDECE8',
+    text: '#10201E', textSecondary: '#56706B', primary: '#007D6B', primaryDim: '#04977E', accent: '#006C5C',
+    border: '#C7DBD6', borderSoft: 'rgba(0, 56, 47, 0.12)', glass: '#FFFFFF',
+    miss: '#70837F', success: '#07855E', danger: '#C93D52', scoreBackground: '#EDF7F4',
   }
 };

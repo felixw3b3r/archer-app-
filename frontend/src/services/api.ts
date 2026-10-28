@@ -1,128 +1,42 @@
-const API_URL = 'https://yusuftaha.space/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// ==========================================
-// AUTH (KAYIT) API
-// ==========================================
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://yusuftaha.space/api';
+export class ApiError extends Error {
+  constructor(message: string, public status: number) { super(message); }
+}
+let onSessionExpired: (() => void) | undefined;
+export const setSessionExpiredHandler = (handler?: () => void) => { onSessionExpired = handler; };
 
-export const registerUser = async (userData: any) => {
-  const response = await fetch(`${API_URL}/auth/register`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || 'Kayıt sırasında bir hata oluştu');
-  }
-  return data;
-};
-
-export const loginUser = async (userData: any) => {
-  const response = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userData),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.message || 'Giriş sırasında bir hata oluştu');
-  }
-  return data;
-};
-
-// ==========================================
-// STUDENT (ÖĞRENCİ) API
-// ==========================================
-
-export const getStudentSessions = async (userId: string, page = 1, limit = 10) => {
-  const response = await fetch(`${API_URL}/student/sessions/${userId}?page=${page}&limit=${limit}`);
-  if (!response.ok) {
-    throw new Error('Ağ hatasi oluştu');
-  }
-  return await response.json();
-};
-
-export const saveStudentSession = async (sessionData: any) => {
-  const response = await fetch(`${API_URL}/student/sessions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(sessionData),
-  });
-  if (!response.ok) {
-    throw new Error('Ağ hatasi oluştu');
-  }
-  return await response.json();
-};
-
-// ==========================================
-// TEACHER (ÖĞRETMEN) API
-// ==========================================
-
-export const getTeacherStudents = async (teacherId: string) => {
-  const response = await fetch(`${API_URL}/teacher/students/${teacherId}`);
-  if (!response.ok) {
-    throw new Error('Ağ hatasi oluştu');
-  }
-  return await response.json();
-};
-
-export const addTeacherStudent = async (studentData: any) => {
-  const response = await fetch(`${API_URL}/teacher/students`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(studentData),
-  });
-  if (!response.ok) {
-    throw new Error('Ağ hatasi oluştu');
-  }
-  return await response.json();
-};
-
-export const getAllStudents = async (page = 1, limit = 10) => {
-  const response = await fetch(`${API_URL}/teacher/all-students?page=${page}&limit=${limit}`);
-  if (!response.ok) throw new Error('Öğrenciler getirilemedi');
-  return response.json();
-};
-
-export const addStudentByTeacher = async (studentData: { name: string; surname: string; dob: string }) => {
-  const response = await fetch(`${API_URL}/teacher/add-student`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(studentData),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Öğrenci eklenemedi');
-  }
-  return response.json();
-};
-
-export const getTeacherCompetitions = async (teacherId: string) => {
+async function request(path: string, options: RequestInit = {}, authenticated = true) {
+  const token = authenticated ? await AsyncStorage.getItem('@auth_token') : null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
-    const response = await fetch(`${API_URL}/teacher/competitions/${teacherId}`);
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
+      signal: controller.signal,
+    });
+    const data = await response.json();
     if (!response.ok) {
-      throw new Error(`Sunucu hatası: ${response.status}`);
+      if (response.status === 401 && authenticated && token === await AsyncStorage.getItem('@auth_token')) onSessionExpired?.();
+      throw new ApiError(data.message || 'İşlem tamamlanamadı.', response.status);
     }
-    return await response.json();
-  } catch (error: any) {
-    throw new Error(error.message || 'Ağ hatası oluştu');
-  }
-};
+    return data;
+  } finally { clearTimeout(timeout); }
+}
+const post = (path: string, data: unknown, authenticated = true) => request(path, { method: 'POST', body: JSON.stringify(data) }, authenticated);
 
-export const saveTeacherCompetition = async (competitionData: any) => {
-  const response = await fetch(`${API_URL}/teacher/competitions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(competitionData),
-  });
-  if (!response.ok) {
-    throw new Error('Ağ hatasi oluştu');
-  }
-  return await response.json();
-};
+export const registerUser = (data: any) => post('/auth/register', data, false);
+export const loginUser = (data: any) => post('/auth/login', data, false);
+export const getCurrentUser = () => request('/auth/me');
+export const logoutUser = () => post('/auth/logout', {});
+export const getStudentSessions = (userId: string, page = 1, limit = 10) => request(`/student/sessions/${encodeURIComponent(userId)}?page=${page}&limit=${limit}`);
+export const saveStudentSession = (data: any) => post('/student/sessions', data);
+export const getTeacherStudents = (teacherId: string) => request(`/teacher/students/${encodeURIComponent(teacherId)}`);
+export const addTeacherStudent = (data: any) => post('/teacher/students', data);
+export const getAllStudents = (page = 1, limit = 10) => request(`/teacher/all-students?page=${page}&limit=${limit}`);
+export const addStudentByTeacher = (data: { name: string; surname: string; dob: string }) => post('/teacher/add-student', data);
+export const createStudentActivation = (userId: string) => post(`/teacher/students/${encodeURIComponent(userId)}/activation`, {});
+export const getTeacherCompetitions = (teacherId: string) => request(`/teacher/competitions/${encodeURIComponent(teacherId)}`);
+export const saveTeacherCompetition = (data: any) => post('/teacher/competitions', data);

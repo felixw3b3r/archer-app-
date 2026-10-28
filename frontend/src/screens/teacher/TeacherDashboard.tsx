@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -15,18 +15,15 @@ import Svg, { Circle } from 'react-native-svg';
 import { getStyles } from './TeacherDashboard.styles';
 import CompetitionScoring from './CompetitionScoring';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { 
-  getTeacherStudents, 
-  addTeacherStudent, 
-  getTeacherCompetitions, 
-  saveTeacherCompetition 
-} from '../../services/api';
+import { getTeacherCompetitions, createStudentActivation } from '../../services/api';
+import { newRecordId, queueRecord, readRecords, mergeRecords, syncRecords } from '../../services/recordStore';
 
 interface Student {
   id: string;
   name: string;
   surname: string;
   dob: string;
+  needsActivation?: boolean;
 }
 
 interface TeacherDashboardProps {
@@ -40,6 +37,9 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   const insets = useSafeAreaInsets();
   const styles = getStyles(insets);
 
+  const competitionId = useRef(newRecordId());
+  const savingCompetition = useRef(false);
+  const [isSavingCompetition, setIsSavingCompetition] = useState(false);
   const [view, setView] = useState<'overview' | 'list' | 'competition_setup' | 'competition_active' | 'competition_history' | 'student_detail'>('overview');
   const [students, setStudents] = useState<Student[]>([]);
   const [studentPage, setStudentPage] = useState(1);
@@ -74,58 +74,22 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   const [isLoadingCompHistory, setIsLoadingCompHistory] = useState(false);
 
   const loadCompetitions = async () => {
+    setIsLoadingCompHistory(true);
     try {
-      setIsLoadingCompHistory(true);
-      const userDataStr = await AsyncStorage.getItem('@user_data');
-      if (!userDataStr) return;
-      const userData = JSON.parse(userDataStr);
-      const teacherId = userData._id;
-
-      if (!teacherId) {
-        console.error("Teacher ID bulunamadı");
-        return;
-      }
-
-      const dbHistory = await getTeacherCompetitions(teacherId);
-      if (dbHistory) {
-        setCompetitionHistory(dbHistory);
-        await AsyncStorage.setItem('@competition_history', JSON.stringify(dbHistory));
-      }
-    } catch (e) {
-      console.error("Yarışma geçmişi yüklenemedi", e);
-    } finally {
-      setIsLoadingCompHistory(false);
-    }
+      const user = JSON.parse(await AsyncStorage.getItem('@user_data') || 'null');
+      if (!user?._id) return;
+      setCompetitionHistory(await readRecords('competition', user._id));
+      await syncRecords('competition', user._id);
+      const records = await getTeacherCompetitions(user._id);
+      setCompetitionHistory(await mergeRecords('competition', user._id, records));
+    } catch (error) {
+      console.error('Yarışma geçmişi yüklenemedi', error);
+    } finally { setIsLoadingCompHistory(false); }
   };
 
-  // Geçmişi ve Öğrencileri Yükle
   useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        const userDataStr = await AsyncStorage.getItem('@user_data');
-        if (!userDataStr) return;
-        const userData = JSON.parse(userDataStr);
-        const teacherId = userData._id;
-
-        // 1. Yarışma Geçmişini Çek
-        try {
-          const { getTeacherCompetitions } = require('../../services/api');
-          const dbHistory = await getTeacherCompetitions(teacherId);
-          if (dbHistory && dbHistory.length > 0) {
-            setCompetitionHistory(dbHistory);
-            await AsyncStorage.setItem('@competition_history', JSON.stringify(dbHistory));
-          }
-        } catch (apiErr) {
-          console.log("Yarışma geçmişi hatası");
-        }
-        
-        // 2. İLK SAYFA ÖĞRENCİLERİ ÇEK
-        await fetchStudents(1, true);
-      } catch (e) {
-        console.error("Veriler yüklenemedi", e);
-      }
-    };
-    loadInitialData();
+    void loadCompetitions();
+    void fetchStudents(1, true);
   }, []);
 
   // Görünüm değiştiğinde yarışma geçmişini tazele
@@ -146,7 +110,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
           id: s._id,
           name: s.name,
           surname: s.surname,
-          dob: s.dob
+          dob: s.dob,
+          needsActivation: s.needsActivation
         }));
         
         if (isInitial) {
@@ -172,61 +137,50 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   };
 
   const saveCompetitionToHistory = async () => {
+    if (savingCompetition.current) return;
+    savingCompetition.current = true;
+    setIsSavingCompetition(true);
     try {
-      const userDataStr = await AsyncStorage.getItem('@user_data');
-      const teacherId = userDataStr ? JSON.parse(userDataStr)._id : 'test_teacher_1';
-
-      const compEndTime = Date.now();
-      const totalCompDuration = compStartTime ? Math.floor((compEndTime - compStartTime) / 1000) : 0;
-
-      const safeCompRounds = parseInt(compRounds) || 5;
-      const safeCompArrows = parseInt(compArrows) || 7;
-    
-      const sortedResults = students
-        .filter(s => selectedStudentIds.includes(s.id))
+      const user = JSON.parse(await AsyncStorage.getItem('@user_data') || 'null');
+      if (!user?._id) throw new Error('Lütfen tekrar giriş yapın.');
+      const rounds = Number(compRounds);
+      const arrows = Number(compArrows);
+      const duration = compStartTime ? Math.floor((Date.now() - compStartTime) / 1000) : 0;
+      const results = students.filter(s => selectedStudentIds.includes(s.id))
         .sort((a, b) => (studentTotalScores[b.id] || 0) - (studentTotalScores[a.id] || 0))
-        .map(s => {
-          const score = studentTotalScores[s.id] || 0;
-          const totalArrows = safeCompRounds * safeCompArrows;
-          const duration = studentDurations[s.id] || 0;
+        .map(student => {
+          const score = studentTotalScores[student.id] || 0;
+          const seconds = studentDurations[student.id] || 0;
           return {
-            studentName: s.name,
-            totalScore: score,
-            seriesScores: studentSeriesScores[s.id] || [],
-            average: totalArrows > 0 ? (score / totalArrows).toFixed(2) : "0.00",
-            duration: `${Math.floor(duration / 60)}dk ${duration % 60}sn`
+            studentId: student.id, studentName: student.name + ' ' + student.surname,
+            totalScore: score, seriesScores: studentSeriesScores[student.id] || [],
+            average: (score / (rounds * arrows)).toFixed(2),
+            duration: Math.floor(seconds / 60) + 'dk ' + seconds % 60 + 'sn'
           };
         });
-
       const now = new Date();
-      const newRecord = {
-        teacherId: teacherId, // Backend için gerekli
+      await queueRecord('competition', user._id, {
+        id: competitionId.current, clientId: competitionId.current, teacherId: user._id,
         date: now.toLocaleDateString('tr-TR') + ' ' + now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
-        rounds: safeCompRounds.toString(),
-        arrowsPerRound: safeCompArrows.toString(),
-        totalDuration: `${Math.floor(totalCompDuration / 60)}dk ${totalCompDuration % 60}sn`,
-        results: sortedResults
-      };
-
-      // 1. Sunucuya Kaydet ve Yanıtı Al
-      let recordToDisplay = newRecord;
-      try {
-        const savedRecord = await saveTeacherCompetition(newRecord);
-        if (savedRecord && savedRecord._id) {
-          recordToDisplay = savedRecord;
-        }
-        console.log("✅ Yarışma sunucuya başarıyla kaydedildi!");
-      } catch (apiErr) {
-        console.error("❌ Yarışma sunucuya kaydedilemedi", apiErr);
-      }
-
-      const safeHistory = Array.isArray(competitionHistory) ? competitionHistory : [];
-      const updatedHistory = [recordToDisplay, ...safeHistory];
-      setCompetitionHistory(updatedHistory);
-      await AsyncStorage.setItem('@competition_history', JSON.stringify(updatedHistory));
-    } catch (e) {
-      console.error("Yarışma kaydedilemedi", e);
+        createdAt: now.toISOString(), rounds: String(rounds), arrowsPerRound: String(arrows),
+        totalDuration: Math.floor(duration / 60) + 'dk ' + duration % 60 + 'sn', results,
+      });
+      setCompetitionHistory(await readRecords('competition', user._id));
+      setShowResults(true);
+      void syncRecords('competition', user._id).catch(console.error);
+    } catch (error: any) {
+      Alert.alert('Kayıt tamamlanamadı', error.message || 'Puanlar korunuyor. Lütfen tekrar deneyin.');
+    } finally {
+      savingCompetition.current = false;
+      setIsSavingCompetition(false);
     }
+  };
+
+  const issueActivation = async (student: Student) => {
+    try {
+      const result = await createStudentActivation(student.id);
+      Alert.alert('İlk giriş kodu', student.name + ' ' + student.surname + '\n\n' + result.activationCode + '\n\nKod 7 gün geçerlidir. Öğrenci bu kodla kendi şifresini belirleyebilir.');
+    } catch (error: any) { Alert.alert('Hata', error.message); }
   };
 
   const toggleStudentSelection = (id: string) => {
@@ -295,7 +249,8 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
         id: savedStudent._id,
         name: savedStudent.name,
         surname: savedStudent.surname,
-        dob: savedStudent.dob
+        dob: savedStudent.dob,
+        needsActivation: savedStudent.needsActivation
       };
 
       setStudents(prev => [newStudent, ...prev]);
@@ -303,7 +258,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
       setNewSurname('');
       setNewDob('');
       setIsModalVisible(false);
-      Alert.alert("Başarılı", "Öğrenci sisteme kaydedildi.");
+      Alert.alert("Öğrenci kaydedildi", "İlk giriş kodu: " + savedStudent.activationCode + "\nKod 7 gün geçerlidir. Öğrenci bu kod ve seçeceği şifreyle giriş yapabilir.");
     } catch (err: any) {
       Alert.alert("Hata", err.message);
     } finally {
@@ -473,6 +428,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             );
           })}
 
+          {hasMoreStudents && (
+            <TouchableOpacity onPress={loadMoreStudents} disabled={isLoadingMore} style={{ padding: 20 }}>
+              <Text style={{ color: theme.primary, textAlign: 'center' }}>{isLoadingMore ? 'Yükleniyor...' : 'DAHA FAZLA ÖĞRENCİ'}</Text>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity 
             style={[styles.startCompButton, { backgroundColor: theme.primary }]}
             onPress={() => {
@@ -480,6 +441,15 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                 Alert.alert("Hata", "Lütfen en az bir öğrenci seçin!");
                 return;
               }
+              if (!Number.isInteger(Number(compRounds)) || Number(compRounds) < 1 || Number(compRounds) > 1000 ||
+                  !Number.isInteger(Number(compArrows)) || Number(compArrows) < 1 || Number(compArrows) > 1000) {
+                Alert.alert('Hata', 'Tur ve ok sayısı 1–1000 arasında tam sayı olmalıdır.');
+                return;
+              }
+              competitionId.current = newRecordId();
+              setStudentDurations({});
+              setMissedStudentIds([]);
+              setActiveSessionStartTime(null);
               setCompStartTime(Date.now());
               setView('competition_active');
             }}
@@ -580,6 +550,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
               <TouchableOpacity 
                 style={[styles.finishCompButton, { backgroundColor: theme.danger || '#FF3131' }]}
+                disabled={isSavingCompetition}
                 onPress={() => {
                   const unfinished = selectedStudentIds.filter(id => !finishedStudentIds.includes(id));
                   
@@ -593,15 +564,14 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                     setMissedStudentIds(unfinished);
                     Alert.alert("Eksik Puanlar", "Puanı girilmemiş öğrenciler var! Yine de bitirmek istiyor musunuz?", [
                       { text: "Düzenle", style: "cancel" },
-                      { text: "Yarışmayı Bitir", onPress: () => { setShowResults(true); saveCompetitionToHistory(); } }
+                      { text: "Yarışmayı Bitir", onPress: () => { void saveCompetitionToHistory(); } }
                     ]);
                   } else {
-                    setShowResults(true);
-                    saveCompetitionToHistory();
+                    void saveCompetitionToHistory();
                   }
                 }}
               >
-                <Text style={styles.finishCompButtonText}>YARIŞMAYI BİTİR</Text>
+                <Text style={styles.finishCompButtonText}>{isSavingCompetition ? 'KAYDEDİLİYOR...' : 'YARIŞMAYI BİTİR'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -746,6 +716,12 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
           </View>
         </View>
 
+        {selectedStudent?.needsActivation && (
+          <TouchableOpacity onPress={() => issueActivation(selectedStudent)} style={{ padding: 16 }}>
+            <Text style={{ color: theme.primary, textAlign: 'center', fontWeight: 'bold' }}>İLK GİRİŞ KODU OLUŞTUR</Text>
+          </TouchableOpacity>
+        )}
+
         <Text style={[styles.sectionTitle, { color: theme.text, marginLeft: 20 }]}>Geçmiş Antrenman ve Yarışmalar</Text>
 
         <ScrollView contentContainerStyle={styles.listContainer}>
@@ -875,7 +851,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
                 >
                   <View>
                     <Text style={[styles.historyDate, { color: theme.text }]}>{item.date}</Text>
-                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{item.rounds} Tur x {item.arrowsPerRound} Ok | Toplam Süre: {item.totalDuration}</Text>
+                    <Text style={{ color: theme.textSecondary, fontSize: 12 }}>{item.rounds} Tur x {item.arrowsPerRound} Ok | Toplam Süre: {item.totalDuration}{item.pending ? ' · Gönderilmeyi bekliyor' : ''}</Text>
                   </View>
                   <Text style={{ color: theme.primary, fontWeight: 'bold' }}>Detay →</Text>
                 </TouchableOpacity>
@@ -981,7 +957,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <View style={[styles.header, { backgroundColor: theme.surface }]}>
-        <Text style={[styles.headerTitle, { color: theme.primary }]}>Öğretmen Paneli</Text>
+        <View>
+          <Text style={{ color: theme.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1.3 }}>● OKÇULUK AKADEMİSİ</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Öğretmen Paneli</Text>
+        </View>
         <TouchableOpacity onPress={onOpenMenu} style={styles.menuButton}>
           <Text style={{ fontSize: 24, color: theme.text }}>☰</Text>
         </TouchableOpacity>
@@ -989,13 +968,20 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={[styles.infoCard, { backgroundColor: theme.surface }]}>
-          <Image 
-            source={require('../../../assets/teacher_role.png')} 
-            style={styles.profileImage} 
-          />
           <View style={styles.infoTextContainer}>
-            <Text style={[styles.welcomeText, { color: theme.text }]}>Hoş Geldiniz, Hocam</Text>
-            <Text style={[styles.subText, { color: theme.textSecondary }]}>Öğrenci listenizi buradan yönetebilirsiniz.</Text>
+            <Text style={{ color: theme.primary, fontSize: 11, fontWeight: '800', letterSpacing: 1, marginBottom: 8 }}>● AKTİF SEZON</Text>
+            <Text style={[styles.welcomeText, { color: theme.text }]}>Hoş Geldiniz,{"\n"}<Text style={{ color: theme.primary }}>Hocam</Text></Text>
+            <Text style={[styles.subText, { color: theme.textSecondary }]}>Sporcu performanslarını izleyin, yarışma serilerini yönetin ve antrenman skorlarını kayıt altına alın.</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+              <View style={{ flex: 1, padding: 13, borderRadius: 16, backgroundColor: theme.scoreBackground, borderWidth: 1, borderColor: theme.borderSoft }}>
+                <Text style={{ color: theme.primary, fontSize: 20, fontWeight: '900' }}>{students.length}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 3 }}>Kayıtlı Öğrenci</Text>
+              </View>
+              <View style={{ flex: 1, padding: 13, borderRadius: 16, backgroundColor: theme.scoreBackground, borderWidth: 1, borderColor: theme.borderSoft }}>
+                <Text style={{ color: theme.primary, fontSize: 20, fontWeight: '900' }}>{competitionHistory.length}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 11, marginTop: 3 }}>Yarışma Kaydı</Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -1004,9 +990,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             style={[styles.featureItem, { backgroundColor: theme.surface }]}
             onPress={() => setView('list')}
           >
-            <Text style={styles.featureIcon}>👥</Text>
+            <Text style={[styles.featureIcon, { color: theme.primary }]}>▣</Text>
             <View>
               <Text style={[styles.featureTitle, { color: theme.text }]}>Öğrenci Listesi</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 3 }}>Kayıtlı okçu ve ilerleme raporları</Text>
             </View>
           </TouchableOpacity>
 
@@ -1014,9 +1001,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             style={[styles.featureItem, { backgroundColor: theme.surface }]}
             onPress={() => setView('competition_setup')}
           >
-            <Text style={styles.featureIcon}>🎯</Text>
+            <Text style={[styles.featureIcon, { color: theme.primary }]}>◎</Text>
             <View>
               <Text style={[styles.featureTitle, { color: theme.text }]}>Yarışma Başlat</Text>
+              <Text style={{ color: theme.primary, fontSize: 12, marginTop: 3 }}>Canlı seri, hedef ve puan girişi</Text>
             </View>
           </TouchableOpacity>
 
@@ -1024,9 +1012,10 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
             style={[styles.featureItem, { backgroundColor: theme.surface }]}
             onPress={() => setView('competition_history')}
           >
-            <Text style={styles.featureIcon}>📜</Text>
+            <Text style={[styles.featureIcon, { color: theme.primary }]}>◷</Text>
             <View>
               <Text style={[styles.featureTitle, { color: theme.text }]}>Yarışma Geçmişi</Text>
+              <Text style={{ color: theme.textSecondary, fontSize: 12, marginTop: 3 }}>Tüm skor, madalya ve sıralamalar</Text>
             </View>
           </TouchableOpacity>
         </View>

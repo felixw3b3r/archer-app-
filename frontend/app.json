@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#040B14"
+      "backgroundColor": "#090D10"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#040B14"
+        "backgroundColor": "#090D10"
       },
       "package": "com.zoomy.archerpro"
     },
@@ -30,6 +30,9 @@
       "eas": {
         "projectId": "16d409fc-6840-419b-ae3a-78035c98cacb"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

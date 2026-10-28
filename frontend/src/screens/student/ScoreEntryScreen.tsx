@@ -30,8 +30,11 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
     setArrowsPerSeries,
     currentSeries,
     scoreInput,
+    seriesScores,
     totalScore,
     isFinished,
+    isSaving,
+    settingsLocked,
     handleIncrement,
     handleDecrement,
     handleZero,
@@ -74,7 +77,7 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
               <Text style={styles.resetTopButtonText}>↻</Text>
             </TouchableOpacity>
             
-            <Text style={styles.title}>Puantaj</Text>
+            <Text style={styles.title}>● Puantaj</Text>
 
             <TouchableOpacity style={styles.menuButton} onPress={onOpenMenu}>
               <Text style={styles.menuButtonText}>☰</Text>
@@ -83,11 +86,11 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
               <View style={styles.settingBox}>
                 <Text style={styles.settingLabel}>Toplam Seri</Text>
                 <View style={styles.settingControls}>
-                  <TouchableOpacity style={styles.controlBtn} onPress={() => setTotalSeries(Math.max(1, totalSeries - 1))}>
+                  <TouchableOpacity disabled={settingsLocked} style={styles.controlBtn} onPress={() => setTotalSeries(Math.max(1, totalSeries - 1))}>
                     <Text style={styles.controlText}>-</Text>
                   </TouchableOpacity>
                   <Text style={styles.settingValue}>{totalSeries}</Text>
-                  <TouchableOpacity style={styles.controlBtn} onPress={() => setTotalSeries(totalSeries + 1)}>
+                  <TouchableOpacity disabled={settingsLocked} style={styles.controlBtn} onPress={() => setTotalSeries(totalSeries + 1)}>
                     <Text style={styles.controlText}>+</Text>
                   </TouchableOpacity>
                 </View>
@@ -96,11 +99,11 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
               <View style={styles.settingBox}>
                 <Text style={styles.settingLabel}>Ok / Seri</Text>
                 <View style={styles.settingControls}>
-                  <TouchableOpacity style={styles.controlBtn} onPress={() => setArrowsPerSeries(Math.max(1, arrowsPerSeries - 1))}>
+                  <TouchableOpacity disabled={settingsLocked} style={styles.controlBtn} onPress={() => setArrowsPerSeries(Math.max(1, arrowsPerSeries - 1))}>
                     <Text style={styles.controlText}>-</Text>
                   </TouchableOpacity>
                   <Text style={styles.settingValue}>{arrowsPerSeries}</Text>
-                  <TouchableOpacity style={styles.controlBtn} onPress={() => setArrowsPerSeries(arrowsPerSeries + 1)}>
+                  <TouchableOpacity disabled={settingsLocked} style={styles.controlBtn} onPress={() => setArrowsPerSeries(arrowsPerSeries + 1)}>
                     <Text style={styles.controlText}>+</Text>
                   </TouchableOpacity>
                 </View>
@@ -111,6 +114,21 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
           {/* Orta Kısım: Skor Girişi */}
           <View style={styles.mainContent}>
             <Text style={styles.seriesInfo}>Seri {currentSeries} / {totalSeries}</Text>
+            <View style={{ flexDirection: 'row', gap: 5, marginBottom: 30, maxWidth: '100%' }}>
+              {Array.from({ length: Math.min(totalSeries, 12) }, (_, index) => (
+                <View
+                  key={index}
+                  style={{
+                    height: 7,
+                    width: totalSeries > 10 ? 16 : 24,
+                    borderRadius: 99,
+                    backgroundColor: index < seriesScores.length ? theme.primaryDim : index === currentSeries - 1 ? theme.primary : theme.surfaceRaised,
+                    borderWidth: 1,
+                    borderColor: index <= currentSeries - 1 ? theme.primary + '70' : theme.borderSoft,
+                  }}
+                />
+              ))}
+            </View>
             
             <View style={styles.scoreInputContainer}>
               {/* Azaltma Butonu */}
@@ -120,6 +138,7 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
 
               {/* Skor Input (Klavye için) */}
               <View style={styles.scoreInputWrapper}>
+                <Text style={{ color: theme.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, position: 'absolute', top: 25 }}>OK PUANI</Text>
                 <TextInput
                   style={styles.scoreInput}
                   keyboardType="number-pad"
@@ -138,8 +157,8 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleSaveScore}>
-              <Text style={styles.saveButtonText}>KAYDET</Text>
+            <TouchableOpacity disabled={isSaving} style={styles.saveButton} onPress={handleSaveScore}>
+              <Text style={styles.saveButtonText}>{isSaving ? 'KAYDEDİLİYOR...' : 'KAYDET'}</Text>
             </TouchableOpacity>
 
             {currentSeries > 1 && (

@@ -20,6 +20,8 @@ import StudentDashboard from './src/screens/student/StudentDashboard';
 import TeacherDashboard from './src/screens/teacher/TeacherDashboard';
 import AuthScreen from './src/screens/auth/AuthScreen';
 import { colors } from './src/theme/colors';
+import { getCurrentUser, logoutUser, setSessionExpiredHandler, ApiError } from './src/services/api';
+import { migrateOwnedHistory, syncRecords } from './src/services/recordStore';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,30 +35,52 @@ export default function App() {
   const slideAnim = useRef(new Animated.Value(width * 0.7)).current;
   const [isReady, setIsReady] = useState(false);
 
-  // Başlangıçta Tema ve Rolü yükle
+  const clearSession = async () => {
+    await AsyncStorage.multiRemove(['@auth_token', '@session_expires', '@user_role', '@user_data']);
+    setRole(null);
+    setUser(null);
+    setCurrentScreen('Home');
+    setIsMenuOpen(false);
+    slideAnim.setValue(width * 0.7);
+  };
+
   useEffect(() => {
+    setSessionExpiredHandler(() => { void clearSession().catch(console.error); });
     const loadData = async () => {
       try {
         const savedTheme = await AsyncStorage.getItem('@theme_mode');
+        if (savedTheme === 'dark' || savedTheme === 'light') setThemeMode(savedTheme);
         const savedRole = await AsyncStorage.getItem('@user_role');
-        const savedUserData = await AsyncStorage.getItem('@user_data');
-        
-        if (savedTheme === 'dark' || savedTheme === 'light') {
-          setThemeMode(savedTheme);
+        const raw = await AsyncStorage.getItem('@user_data');
+        const savedUser = raw ? JSON.parse(raw) : null;
+        if (savedUser?._id) await migrateOwnedHistory(savedUser._id);
+        const token = await AsyncStorage.getItem('@auth_token');
+        const expiresAt = await AsyncStorage.getItem('@session_expires');
+        if (!savedUser || !token || !expiresAt || Date.parse(expiresAt) <= Date.now()) {
+          await clearSession();
+          return;
         }
-        if (savedRole === 'student' || savedRole === 'teacher') {
-          setRole(savedRole as 'student' | 'teacher');
+        const { password, passwordHash, teacherKey, token: oldToken, ...safeUser } = savedUser;
+        await AsyncStorage.setItem('@user_data', JSON.stringify(safeUser));
+        setUser(safeUser);
+        setRole(safeUser.role === 'student' ? 'student' : savedRole === 'student' ? 'student' : 'teacher');
+        try {
+          const current = await getCurrentUser();
+          await AsyncStorage.setItem('@user_data', JSON.stringify(current));
+          setUser(current);
+          if (current.role === 'student') setRole('student');
+          void syncRecords('training', current._id).catch(console.error);
+          if (current.role === 'teacher') void syncRecords('competition', current._id).catch(console.error);
+        } catch (error) {
+          if (error instanceof ApiError && error.status === 401) await clearSession();
+          // A network failure keeps an unexpired local session usable offline.
         }
-        if (savedUserData) {
-          setUser(JSON.parse(savedUserData));
-        }
-      } catch (e) {
-        console.error("Veriler yüklenemedi", e);
-      } finally {
-        setIsReady(true);
-      }
+      } catch (error) {
+        console.error('Oturum yüklenemedi', error);
+      } finally { setIsReady(true); }
     };
-    loadData();
+    void loadData();
+    return () => setSessionExpiredHandler(undefined);
   }, []);
 
   const selectRole = async (selectedRole: 'student' | 'teacher') => {
@@ -87,32 +111,23 @@ export default function App() {
     }
   };
 
-  const onLogin = async (selectedRole: 'student' | 'teacher', userData: any) => {
-    try {
-      // Giriş yaparken her ihtimale karşı verileri temizleyip taze kaydedelim
-      await AsyncStorage.multiSet([
-        ['@user_role', selectedRole],
-        ['@user_data', JSON.stringify(userData)]
-      ]);
-      
-      setRole(selectedRole);
-      setUser(userData);
-    } catch (e) {
-      console.error("Giriş verileri kaydedilirken hata:", e);
-      Alert.alert("Hata", "Giriş bilgileri cihaz hafızasına kaydedilemedi.");
-    }
+  const onLogin = async (selectedRole: 'student' | 'teacher', data: any) => {
+    const { token, expiresAt, password, passwordHash, teacherKey, ...userData } = data;
+    if (!token || !expiresAt) throw new Error('Sunucu güncellemesi gerekiyor. Oturum açılamadı.');
+    await AsyncStorage.multiSet([
+      ['@auth_token', token], ['@session_expires', expiresAt],
+      ['@user_role', selectedRole], ['@user_data', JSON.stringify(userData)]
+    ]);
+    setCurrentScreen('Home');
+    setRole(selectedRole);
+    setUser(userData);
+    void syncRecords('training', userData._id).catch(console.error);
+    if (userData.role === 'teacher') void syncRecords('competition', userData._id).catch(console.error);
   };
 
   const logoutRole = async () => {
-    setRole(null);
-    setUser(null);
-    setIsMenuOpen(false);
-    try {
-      await AsyncStorage.removeItem('@user_role');
-      await AsyncStorage.removeItem('@user_data');
-    } catch (e) {
-      console.error("Rol silinemedi", e);
-    }
+    try { await logoutUser(); } catch { /* Local logout still works offline. */ }
+    await clearSession();
   };
 
   const toggleTheme = async () => {
@@ -171,16 +186,7 @@ export default function App() {
           <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
           <AuthScreen 
             themeMode={themeMode} 
-            onLogin={async (selectedRole, userData) => {
-              setRole(selectedRole);
-              setUser(userData);
-              try {
-                await AsyncStorage.setItem('@user_role', selectedRole);
-                await AsyncStorage.setItem('@user_data', JSON.stringify(userData));
-              } catch (e) {
-                console.error("Giriş bilgileri kaydedilemedi", e);
-              }
-            }} 
+            onLogin={onLogin}
           />
         </View>
       </SafeAreaProvider>
@@ -264,11 +270,11 @@ export default function App() {
         {role === 'student' && (
           <>
             <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('Home')}>
-              <Text style={[styles.menuItemText, { color: currentScreen === 'Home' ? theme.primary : theme.text }]}>Antrenman</Text>
+              <Text style={[styles.menuItemText, { color: currentScreen === 'Home' ? theme.primary : theme.text }]}>◎  Puantaj</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('History')}>
-              <Text style={[styles.menuItemText, { color: currentScreen === 'History' ? theme.primary : theme.text }]}>Geçmiş</Text>
+              <Text style={[styles.menuItemText, { color: currentScreen === 'History' ? theme.primary : theme.text }]}>◷  Geçmiş</Text>
             </TouchableOpacity>
           </>
         )}
@@ -332,37 +338,42 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: width * 0.7,
+    width: Math.min(width * 0.82, 360),
     right: 0,
     zIndex: 100,
-    paddingTop: 60,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    elevation: 5,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.12)',
+    elevation: 12,
     shadowColor: '#000',
     shadowOffset: { width: -2, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
+    shadowOpacity: 0.55,
+    shadowRadius: 24,
   },
   menuHeader: {
-    marginBottom: 40,
+    marginBottom: 28,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(128,128,128,0.2)',
+    borderBottomColor: 'rgba(255,255,255,0.10)',
     paddingBottom: 20,
   },
   menuTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 25,
+    fontWeight: '800',
   },
   themeToggle: {
     padding: 5,
   },
   menuItem: {
-    paddingVertical: 15,
-    marginBottom: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.035)',
   },
   menuItemText: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '800',
   },
   menuFooter: {
     position: 'absolute',
@@ -378,9 +389,9 @@ const styles = StyleSheet.create({
   menuRoleIconButton: {
     alignItems: 'center',
     padding: 10,
-    borderRadius: 15,
+    borderRadius: 20,
     width: '45%',
-    backgroundColor: 'rgba(128,128,128,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
   },
   menuRoleIcon: {
     width: 45,

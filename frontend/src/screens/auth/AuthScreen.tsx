@@ -18,7 +18,7 @@ import { registerUser, loginUser } from '../../services/api';
 const { width } = Dimensions.get('window');
 
 interface AuthScreenProps {
-  onLogin: (role: 'student' | 'teacher', userData: any) => void;
+  onLogin: (role: 'student' | 'teacher', userData: any) => void | Promise<void>;
   themeMode: 'dark' | 'light';
 }
 
@@ -30,6 +30,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
   const [dob, setDob] = useState('');
   const [password, setPassword] = useState('');
   const [teacherKey, setTeacherKey] = useState('');
+  const [activationCode, setActivationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
   const theme = themeMode === 'dark' ? colors.dark : colors.light;
@@ -76,7 +77,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
       return;
     }
 
-    if (!password || password.length < 4) {
+    if (!password || (authMode === 'register' && password.length < 4)) {
       Alert.alert("Hata", "Şifre en az 4 haneli olmalıdır.");
       return;
     }
@@ -103,12 +104,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
           name: name.trim(),
           surname: surname.trim(),
           role,
-          password: password
+          password: password,
+          activationCode: activationCode.trim()
         });
       }
       
       // Başarılı Giriş/Kayıt
-      onLogin(role, result);
+      await onLogin(role, result);
     } catch (err: any) {
       Alert.alert("Hata", err.message);
     } finally {
@@ -122,13 +124,14 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
       style={[styles.container, { backgroundColor: theme.background }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.primary }]}>Archer App</Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Okçuluk Dünyasına Hoş Geldiniz</Text>
+        <View style={[styles.header, { backgroundColor: theme.surface, borderColor: theme.borderSoft }]}>
+          <Text style={[styles.eyebrow, { color: theme.primary }]}>● OKÇULUK AKADEMİSİ</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Archer App</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Odaklan. Kaydet. Geliş.</Text>
         </View>
 
         {/* ROL SEÇİMİ (YAN YANA) */}
-        <View style={[styles.roleTabContainer, { backgroundColor: themeMode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }]}>
+        <View style={[styles.roleTabContainer, { backgroundColor: theme.scoreBackground, borderColor: theme.borderSoft }]}>
           <TouchableOpacity 
             style={[styles.roleTab, role === 'student' && { backgroundColor: theme.primary }]}
             onPress={() => setRole('student')}
@@ -149,7 +152,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>ADINIZ</Text>
             <TextInput 
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+              style={[styles.input, { color: theme.text, borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
               placeholderTextColor={theme.textSecondary + '80'}
               value={name}
               onChangeText={setName}
@@ -159,7 +162,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>SOYADINIZ</Text>
             <TextInput 
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+              style={[styles.input, { color: theme.text, borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
               placeholderTextColor={theme.textSecondary + '80'}
               value={surname}
               onChangeText={setSurname}
@@ -170,7 +173,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>DOĞUM TARİHİ</Text>
               <TextInput 
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                style={[styles.input, { color: theme.text, borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
                 placeholder="GG/AA/YYYY"
                 placeholderTextColor={theme.textSecondary + '80'}
                 keyboardType="numeric"
@@ -184,7 +187,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.textSecondary }]}>ŞİFRE</Text>
             <TextInput 
-              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+              style={[styles.input, { color: theme.text, borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
               placeholder="****"
               placeholderTextColor={theme.textSecondary + '80'}
               secureTextEntry
@@ -197,7 +200,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.textSecondary }]}>ÖĞRETMEN ANAHTARI</Text>
               <TextInput 
-                style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.surface }]}
+                style={[styles.input, { color: theme.text, borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
                 placeholder="5 Haneli Kod"
                 placeholderTextColor={theme.textSecondary + '80'}
                 autoCapitalize="characters"
@@ -205,6 +208,21 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
                 value={teacherKey}
                 onChangeText={setTeacherKey}
               />
+            </View>
+          )}
+
+          {role === 'student' && authMode === 'login' && (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: theme.textSecondary }]}>İLK GİRİŞ KODU (VARSA)</Text>
+              <TextInput
+                style={[styles.input, { color: theme.text, borderColor: theme.borderSoft, backgroundColor: theme.surface }]}
+                placeholder="Öğretmeninizin verdiği kod"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="characters"
+                value={activationCode}
+                onChangeText={setActivationCode}
+              />
+              <Text style={{ color: theme.textSecondary, marginTop: 8 }}>İlk girişte kodunuzu ve kullanmak istediğiniz yeni şifreyi girin.</Text>
             </View>
           )}
 
@@ -233,6 +251,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin, themeMode }) => {
 };
 
 const styles = StyleSheet.create({
+  toggleAuthMode: { paddingVertical: 10 },
   container: {
     flex: 1,
   },
@@ -241,30 +260,40 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 40 : 80,
   },
   header: {
-    marginBottom: 40,
+    marginBottom: 24,
     alignItems: 'center',
+    padding: 26,
+    borderRadius: 30,
+    borderWidth: 1,
   },
   title: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-    marginBottom: 10,
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -.5,
+    marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    letterSpacing: 1,
+    fontSize: 14,
+    letterSpacing: .3,
+  },
+  eyebrow: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+    marginBottom: 12,
   },
   roleTabContainer: {
     flexDirection: 'row',
-    borderRadius: 15,
+    borderRadius: 999,
     padding: 5,
-    marginBottom: 30,
+    marginBottom: 26,
+    borderWidth: 1,
   },
   roleTab: {
     flex: 1,
     paddingVertical: 15,
     alignItems: 'center',
-    borderRadius: 12,
+    borderRadius: 999,
   },
   roleTabText: {
     fontWeight: 'bold',
@@ -286,17 +315,17 @@ const styles = StyleSheet.create({
   input: {
     height: 55,
     borderWidth: 1,
-    borderRadius: 15,
+    borderRadius: 16,
     paddingHorizontal: 20,
     fontSize: 16,
   },
   submitButton: {
     height: 60,
-    borderRadius: 15,
+    borderRadius: 999,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 20,
-    shadowColor: '#000',
+    shadowColor: '#00F5D4',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 5,
