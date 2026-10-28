@@ -31,9 +31,11 @@ interface TeacherDashboardProps {
   themeMode: 'dark' | 'light';
   theme: any;
   onLogout: () => void;
+  navigationTarget: string;
+  onNavigationChange: (target: string) => void;
 }
 
-const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMode, theme, onLogout }) => {
+const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMode, theme, onLogout, navigationTarget, onNavigationChange }) => {
   const insets = useSafeAreaInsets();
   const styles = getStyles(insets);
 
@@ -98,6 +100,17 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
       loadCompetitions();
     }
   }, [view]);
+
+  useEffect(() => {
+    if (['overview', 'list', 'competition_setup', 'competition_history'].includes(navigationTarget)) {
+      setView(navigationTarget as typeof view);
+    }
+  }, [navigationTarget]);
+
+  useEffect(() => {
+    const tab = view === 'student_detail' ? 'list' : view === 'competition_active' ? 'competition_setup' : view;
+    if (['overview', 'list', 'competition_setup', 'competition_history'].includes(tab)) onNavigationChange(tab);
+  }, [view, onNavigationChange]);
 
   const fetchStudents = async (page: number, isInitial = false) => {
     try {

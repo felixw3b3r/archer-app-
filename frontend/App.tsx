@@ -22,6 +22,7 @@ import AuthScreen from './src/screens/auth/AuthScreen';
 import { colors } from './src/theme/colors';
 import { getCurrentUser, logoutUser, setSessionExpiredHandler, ApiError } from './src/services/api';
 import { migrateOwnedHistory, syncRecords } from './src/services/recordStore';
+import BottomNavigation from './src/components/BottomNavigation';
 
 const { width, height } = Dimensions.get('window');
 // The drawer must move by at least its own width when closed.  The old
@@ -36,6 +37,7 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [currentScreen, setCurrentScreen] = useState('Home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [teacherNavigation, setTeacherNavigation] = useState('overview');
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(systemColorScheme === 'dark' ? 'dark' : 'light');
   const slideAnim = useRef(new Animated.Value(MENU_CLOSED_X)).current;
   const [isReady, setIsReady] = useState(false);
@@ -217,8 +219,19 @@ export default function App() {
           themeMode={themeMode} 
           theme={theme}
           onLogout={logoutRole}
+          navigationTarget={teacherNavigation}
+          onNavigationChange={setTeacherNavigation}
         />
       )}
+
+      <BottomNavigation
+        theme={theme}
+        activeId={role === 'student' ? currentScreen : teacherNavigation}
+        onSelect={(id) => role === 'student' ? setCurrentScreen(id) : setTeacherNavigation(id)}
+        items={role === 'student'
+          ? [{ id: 'Home', label: 'Puantaj', icon: '◎' }, { id: 'History', label: 'Geçmiş', icon: '◷' }]
+          : [{ id: 'overview', label: 'Panel', icon: '▦' }, { id: 'list', label: 'Öğrenciler', icon: '♟' }, { id: 'competition_setup', label: 'Yarışma', icon: '◎' }, { id: 'competition_history', label: 'Geçmiş', icon: '◷' }]}
+      />
 
       {/* MERKEZİ MENÜ SİSTEMİ (EN ÜST KATMAN) */}
       {isMenuOpen && (
