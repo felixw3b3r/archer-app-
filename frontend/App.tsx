@@ -24,6 +24,11 @@ import { getCurrentUser, logoutUser, setSessionExpiredHandler, ApiError } from '
 import { migrateOwnedHistory, syncRecords } from './src/services/recordStore';
 
 const { width, height } = Dimensions.get('window');
+// The drawer must move by at least its own width when closed.  The old
+// `width * 0.7` translation was smaller than the drawer (`width * 0.82`),
+// leaving a visible strip on the right side of narrow devices.
+const MENU_WIDTH = Math.min(width * 0.82, 360);
+const MENU_CLOSED_X = MENU_WIDTH + 24;
 
 export default function App() {
   const systemColorScheme = useColorScheme();
@@ -32,7 +37,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState('Home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'dark' | 'light'>(systemColorScheme === 'dark' ? 'dark' : 'light');
-  const slideAnim = useRef(new Animated.Value(width * 0.7)).current;
+  const slideAnim = useRef(new Animated.Value(MENU_CLOSED_X)).current;
   const [isReady, setIsReady] = useState(false);
 
   const clearSession = async () => {
@@ -41,7 +46,7 @@ export default function App() {
     setUser(null);
     setCurrentScreen('Home');
     setIsMenuOpen(false);
-    slideAnim.setValue(width * 0.7);
+    slideAnim.setValue(MENU_CLOSED_X);
   };
 
   useEffect(() => {
@@ -145,7 +150,7 @@ export default function App() {
   const toggleMenu = () => {
     if (isMenuOpen) {
       Animated.timing(slideAnim, {
-        toValue: width * 0.7,
+        toValue: MENU_CLOSED_X,
         duration: 300,
         useNativeDriver: true,
       }).start(() => setIsMenuOpen(false));
@@ -338,7 +343,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     bottom: 0,
-    width: Math.min(width * 0.82, 360),
+    width: MENU_WIDTH,
     right: 0,
     zIndex: 100,
     paddingTop: 64,
