@@ -6,12 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#090D10"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zoomy.archerpro"
@@ -32,7 +26,9 @@
       }
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-status-bar",
+      ["expo-splash-screen", { "image": "./assets/splash-icon.png", "resizeMode": "contain", "backgroundColor": "#090D10" }]
     ]
   }
 }

@@ -48,6 +48,7 @@ export default function App() {
     setUser(null);
     setCurrentScreen('Home');
     setIsMenuOpen(false);
+    slideAnim.stopAnimation();
     slideAnim.setValue(MENU_CLOSED_X);
   };
 
@@ -155,7 +156,7 @@ export default function App() {
         toValue: MENU_CLOSED_X,
         duration: 300,
         useNativeDriver: true,
-      }).start(() => setIsMenuOpen(false));
+      }).start(({ finished }) => { if (finished) setIsMenuOpen(false); });
     } else {
       setIsMenuOpen(true);
       Animated.timing(slideAnim, {
@@ -190,7 +191,7 @@ export default function App() {
     return (
       <SafeAreaProvider>
         <View style={{ flex: 1, backgroundColor: theme.background }}>
-          <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+          <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} />
           <AuthScreen 
             themeMode={themeMode} 
             onLogin={onLogin}
@@ -204,7 +205,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} />
       
       {/* ROL TABANLI EKRAN RENDERI */}
       {role === 'student' ? (
@@ -243,6 +244,7 @@ export default function App() {
       )}
 
       <Animated.View 
+        pointerEvents={isMenuOpen ? 'auto' : 'none'}
         style={[
           styles.menuContainer, 
           { backgroundColor: theme.surface, transform: [{ translateX: slideAnim }] }
@@ -348,7 +350,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
     zIndex: 99,
   },

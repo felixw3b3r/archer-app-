@@ -29,7 +29,7 @@ export const getStyles = (theme: any, insets?: { top: number, bottom: number }) 
     },
     resetTopButton: {
       position: 'absolute',
-      top: 10,
+      top: topInset + 10,
       left: 10,
       zIndex: 10,
       width: 45,
@@ -51,7 +51,7 @@ export const getStyles = (theme: any, insets?: { top: number, bottom: number }) 
     },
     menuButton: {
       position: 'absolute',
-      top: 10,
+      top: topInset + 10,
       right: 10,
       zIndex: 10,
       width: 45,
@@ -190,6 +190,7 @@ export const getStyles = (theme: any, insets?: { top: number, bottom: number }) 
     width: 150,
     height: 150,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 2,
     borderColor: theme.primary,
   },

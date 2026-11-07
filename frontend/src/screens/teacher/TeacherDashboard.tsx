@@ -592,7 +592,7 @@ const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ onOpenMenu, themeMo
 
         {/* SONUÇ EKRANI */}
         {showResults && !activeStudentId && (
-          <View style={StyleSheet.absoluteFillObject}>
+          <View style={StyleSheet.absoluteFill}>
             <View style={{ flex: 1, backgroundColor: theme.background }}>
                <View style={[styles.header, { backgroundColor: theme.surface }]}>
                   <Text style={[styles.headerTitle, { color: theme.primary }]}>Yarışma Sonuçları</Text>

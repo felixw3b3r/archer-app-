@@ -138,7 +138,7 @@ export default function ScoreEntryScreen({ onOpenMenu, themeMode }: { onOpenMenu
 
               {/* Skor Input (Klavye için) */}
               <View style={styles.scoreInputWrapper}>
-                <Text style={{ color: theme.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, position: 'absolute', top: 25 }}>OK PUANI</Text>
+                <Text style={{ color: theme.primary, fontSize: 10, fontWeight: '800', letterSpacing: 1.2, position: 'absolute', top: 18 }}>SERİ PUANI</Text>
                 <TextInput
                   style={styles.scoreInput}
                   keyboardType="number-pad"
